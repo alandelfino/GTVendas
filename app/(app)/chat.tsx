@@ -48,6 +48,10 @@ interface Message {
   data?: any;
   audioUri?: string;
   isVoice?: boolean;
+  hasAudio?: boolean;
+  hasTts?: boolean;
+  transcricao?: string | null;
+  audioMime?: string | null;
 }
 
 interface ChatSession {
@@ -65,7 +69,6 @@ export default function ChatScreen() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [voiceMessagesHistory, setVoiceMessagesHistory] = useState<Set<string>>(new Set());
   const [inputText, setInputText] = useState('');
   const [streamPhase, setStreamPhase] = useState<'idle' | 'waiting' | 'streaming'>('idle');
   const [streamingText, setStreamingText] = useState('');
@@ -150,16 +153,13 @@ export default function ChatScreen() {
   const loadMessages = async (sessionId: number) => {
     try {
       const response = await api.get(`/api/rep/chat/sessions/${sessionId}/messages`);
-      const formattedMessages = response.data.map((m: any) => {
-        const isVoice = m.isVoice || m.audioUri || voiceMessagesHistory.has(m.content);
-        return {
-          ...m,
-          id: m.id,
-          role: m.role,
-          content: m.content,
-          isVoice: isVoice
-        };
-      });
+      const formattedMessages = response.data.map((m: any) => ({
+        ...m,
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        isVoice: m.hasAudio || (m.role === 'assistant' && m.hasTts), // Se o bot já tem TTS em cache, tratamos como voz
+      }));
       setMessages(formattedMessages);
       setTimeout(() => flatListRef.current?.scrollToEnd(), 200);
     } catch (error) {
@@ -236,11 +236,25 @@ export default function ChatScreen() {
             }]);
             break;
           case 'done':
+            // 1. Adiciona a mensagem final localmente para evitar que suma enquanto recarrega
+            if (accumulatedText.trim()) {
+              setMessages(prev => [...prev, {
+                id: `temp-${Date.now()}`,
+                role: 'assistant',
+                content: accumulatedText,
+                isVoice: false // O loadMessages vai atualizar se tem TTS depois
+              }]);
+            }
+            
+            // 2. Limpa o estado de streaming
             ws.close();
+            setStreamingText('');
             setStreamPhase('idle');
+            accumulatedText = '';
+            
+            // 3. Sincroniza com o servidor
             loadMessages(activeSessionId);
             loadSessions();
-            // Desativado reprodução automática conforme solicitado pelo usuário
             break;
           case 'error':
             setStreamPhase('idle');
@@ -376,7 +390,6 @@ export default function ChatScreen() {
             isVoice: true,
             audioUri: uri
           };
-          setVoiceMessagesHistory(prev => new Set(prev).add(body.text));
           setMessages(prev => [...prev, userMessage]);
           sendMessage(body.text, true); 
         } else {
@@ -443,7 +456,50 @@ export default function ChatScreen() {
     const [isLoading, setIsLoading] = useState(false);
 
     const getAudioSource = async () => {
+      // 1. Áudio local (acabou de gravar)
       if (message.audioUri) return { uri: message.audioUri };
+      
+      // 2. Áudio do Usuário (remoto GET)
+      if (message.role === 'user' && message.id) {
+        return { 
+          uri: `${api.defaults.baseURL}api/rep/chat/messages/${message.id}/audio`,
+          headers: api.defaults.headers.common as any
+        };
+      }
+
+      // 3. Áudio do Assistente (POST / tts)
+      if (message.role === 'assistant' && message.id) {
+        setIsLoading(true);
+        try {
+          // Como o endpoint de TTS é um POST, precisamos baixar o blob primeiro
+          // ou tentar um GET se o servidor permitir (vou tentar o POST primeiro)
+          const response = await api.post(`api/rep/chat/messages/${message.id}/tts`, {}, {
+            responseType: 'blob'
+          });
+          
+          // No ambiente mobile (React Native/Expo), precisamos converter o blob para um arquivo local
+          // ou usar um data URI (mais simples para mpeg pequeno)
+          const reader = new FileReader();
+          return new Promise((resolve, reject) => {
+            reader.onloadend = () => {
+              setIsLoading(false);
+              resolve({ uri: reader.result as string });
+            };
+            reader.onerror = () => {
+              setIsLoading(false);
+              reject(new Error("Erro ao ler o áudio do assistente"));
+            };
+            reader.readAsDataURL(response.data);
+          });
+        } catch (err) {
+          console.error("Erro ao buscar TTS via POST:", err);
+          // Fallback para o endpoint antigo ou apenas erro
+          setIsLoading(false);
+          throw err;
+        }
+      }
+
+      // 4. Fallback: Gerar TTS sob demanda (Assistant ou User s/ áudio salvo)
       setIsLoading(true);
       try {
         const cleanText = message.content.replace(/[*_#`\[\]()]/g, '').replace(/\n/g, '. ').substring(0, 500);
@@ -476,7 +532,7 @@ export default function ChatScreen() {
       if (!source) return;
       try {
         const { sound: newSound } = await Audio.Sound.createAsync(
-          source,
+          source as any,
           { shouldPlay: true },
           (status: any) => {
             if (status.isLoaded) {
@@ -544,7 +600,7 @@ export default function ChatScreen() {
           <Markdown style={isUser ? userMarkdownStyles : assistantMarkdownStyles}>
             {item.content}
           </Markdown>
-          {(item.role === 'assistant' || item.isVoice) && (
+          {(item.role === 'assistant' || item.hasAudio || item.isVoice) && (
             <MessageAudioPlayer message={item} />
           )}
         </View>

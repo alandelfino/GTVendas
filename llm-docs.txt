@@ -558,7 +558,31 @@ Response 200: { "success": true }
 Retorna o histórico de mensagens de uma sessão.
 Auth: sessão ou JWT | Role: user
 Params: id (número inteiro)
-Response 200: Array de { role: "user"|"assistant", content: "string", timestamp: "string" }
+Response 200: Array de objetos com os campos:
+  - id: number — ID da mensagem
+  - role: "user" | "assistant"
+  - content: string — texto da mensagem (para voz: transcrição do áudio)
+  - criadoEm: string (ISO 8601)
+  - hasAudio: boolean — true se a mensagem do usuário foi enviada por voz (player de áudio disponível)
+  - hasTts: boolean — true se o TTS da resposta já foi gerado e está em cache
+  - transcricao: string | null — transcrição do áudio (igual a content, para mensagens de voz)
+  - audioMime: string | null — MIME type do áudio gravado (ex: "audio/webm", "audio/mp4")
+Nota: os blobs de áudio (audio_data, tts_data) NÃO são retornados aqui para não sobrecarregar. Use os endpoints /audio e /tts para obtê-los.
+
+### GET /api/rep/chat/messages/:id/audio
+Serve o áudio gravado pelo usuário em uma mensagem de voz.
+Auth: sessão ou JWT | Role: user
+Params: id (número inteiro) — ID da mensagem com hasAudio = true
+Response 200: binário de áudio (Content-Type: audio/webm, audio/mp4, audio/mpeg etc.)
+Response 404: mensagem não encontrada ou não possui áudio
+Obs: Cache-Control private, max-age=86400. Usar quando hasAudio = true na mensagem para exibir player de áudio.
+
+### POST /api/rep/chat/messages/:id/tts
+Gera (ou retorna do cache) o áudio TTS da resposta do assistente.
+Auth: sessão ou JWT | Role: user
+Params: id (número inteiro) — ID da mensagem com role = "assistant"
+Response 200: binário de áudio (Content-Type: audio/mpeg)
+Obs: Na primeira chamada gera e salva no banco (hasTts passa a ser true). Nas chamadas seguintes retorna do cache imediatamente.
 
 ### POST /api/rep/chat/ws-token
 Gera um token temporário (30 segundos) para abrir a conexão WebSocket.
