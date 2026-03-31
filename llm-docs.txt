@@ -1,0 +1,858 @@
+# GT Vendas — Documentação Completa da API
+Versão: 1.0 | Base URL: https://gtvendas.grupotitaniumjeans.com.br
+
+---
+
+## AUTENTICAÇÃO
+
+A API suporta dois mecanismos de autenticação:
+
+### 1. Sessão (Web)
+Login via POST /api/login. O servidor retorna um cookie de sessão que deve ser enviado automaticamente nas requisições subsequentes.
+
+### 2. JWT Bearer Token (Mobile / Apps Nativos)
+Login via POST /api/mobile/login. Retorna accessToken (15 min) e refreshToken (30 dias).
+Envie em todas as requisições: Authorization: Bearer <accessToken>
+Quando o accessToken expirar (erro 401), use POST /api/mobile/refresh para renovar.
+
+### 3. API Token (Integrações / Webservice)
+Token permanente gerado pelo usuário master em /api/tokens.
+Envie: Authorization: Bearer <apiToken>
+Usado exclusivamente nos endpoints de escrita do ERP (POST/PATCH/DELETE em /api/erp/*).
+
+### Níveis de acesso:
+- master: acesso total a todos os endpoints
+- webservice: acesso a leitura do ERP e endpoints tokenAuth
+- user: acesso às rotas /api/rep/* (vinculado a um representanteId)
+
+---
+
+## MÓDULO: AUTENTICAÇÃO WEB
+
+### POST /api/login
+Autentica o usuário e cria uma sessão.
+Auth: nenhuma (público)
+Body: { "username": "string", "password": "string" }
+Response 200: { "id": "uuid", "username": "string", "role": "master|user|webservice", "representanteId": "string|null", "nomeCompleto": "string|null", "companiesIds": ["string"] }
+Response 401: credenciais inválidas
+
+### POST /api/logout
+Encerra a sessão atual.
+Auth: sessão
+Response 200: vazio
+
+### GET /api/user
+Retorna o usuário autenticado pela sessão atual.
+Auth: sessão
+Response 200: objeto User (sem password)
+Response 401: não autenticado
+
+### GET /api/user-count
+Retorna a quantidade total de usuários cadastrados (usado para verificar se o sistema já foi inicializado).
+Auth: nenhuma (público)
+Response 200: { "count": number }
+
+---
+
+## MÓDULO: AUTENTICAÇÃO MOBILE (JWT)
+
+### POST /api/mobile/login
+Autentica um usuário mobile e retorna tokens JWT.
+Auth: nenhuma (público)
+Body: { "username": "string", "password": "string" }
+Response 200: {
+  "accessToken": "string (JWT, validade 15min)",
+  "refreshToken": "string (JWT, validade 30 dias)",
+  "user": { "id": "uuid", "username": "string", "role": "string", "representanteId": "string|null", "nomeCompleto": "string|null", "companiesIds": ["string"] }
+}
+Response 400: username e password são obrigatórios
+Response 401: credenciais inválidas
+
+### POST /api/mobile/refresh
+Renova o accessToken usando o refreshToken.
+Auth: nenhuma (público) — o refreshToken é a credencial
+Body: { "refreshToken": "string" }
+Response 200: { "accessToken": "string (JWT, validade 15min)" }
+Response 400: refreshToken obrigatório
+Response 401: token inválido ou expirado
+
+### GET /api/mobile/me
+Retorna o usuário autenticado pelo JWT.
+Auth: JWT Bearer token
+Response 200: objeto User (sem password)
+Response 401: não autenticado
+
+---
+
+## MÓDULO: ADMINISTRAÇÃO DE USUÁRIOS (role: master)
+
+### GET /api/admin/users
+Lista todos os usuários do sistema.
+Auth: sessão ou JWT | Role: master
+Response 200: Array de { id, username, role, representanteId, nomeCompleto, companiesIds }
+
+### POST /api/admin/users
+Cria um novo usuário.
+Auth: sessão ou JWT | Role: master
+Body: { "username": "string (obrigatório)", "password": "string (obrigatório)", "role": "master|user|webservice", "representanteId": "string|null", "nomeCompleto": "string|null" }
+Response 201: objeto User criado
+Response 400: username e password obrigatórios
+Response 409: username já existe
+
+### PATCH /api/admin/users/:id
+Atualiza dados de um usuário.
+Auth: sessão ou JWT | Role: master
+Params: id (UUID do usuário)
+Body (todos opcionais): { "username": "string", "password": "string", "role": "string", "representanteId": "string|null", "nomeCompleto": "string|null" }
+Response 200: objeto User atualizado
+
+### DELETE /api/admin/users/:id
+Remove um usuário do sistema.
+Auth: sessão ou JWT | Role: master
+Params: id (UUID do usuário)
+Response 200: { "success": true }
+
+### PATCH /api/admin/representantes/:idExterno/companies
+Atualiza as empresas vinculadas ao representante de um usuário.
+Auth: sessão ou JWT | Role: master
+Params: idExterno (ID externo do representante, ex: "REP001")
+Body: { "companiesIds": ["string"] }
+Response 200: { "success": true }
+
+### GET /api/companies
+Lista todas as empresas cadastradas.
+Auth: sessão ou JWT | Role: qualquer autenticado
+Response 200: Array de empresas
+
+---
+
+## MÓDULO: TOKENS DE API
+
+### GET /api/tokens
+Lista os tokens de API criados.
+Auth: sessão ou JWT | Role: master ou webservice
+Response 200: Array de { id, nome, token (mascarado), active, createdBy, lastUsed, criadoEm }
+
+### POST /api/tokens
+Cria um novo token de API.
+Auth: sessão ou JWT | Role: master ou webservice
+Body: { "nome": "string (obrigatório)" }
+Response 201: { id, nome, token (completo, salvar agora!), active, criadoEm }
+
+### DELETE /api/tokens/:id
+Revoga (deleta) um token de API.
+Auth: sessão ou JWT | Role: master ou webservice
+Params: id (número inteiro)
+Response 200: { "success": true }
+
+---
+
+## MÓDULO: ERP — REPRESENTANTES
+
+### GET /api/erp/representantes
+Lista representantes.
+Auth: sessão, JWT, ou API Token | Role: qualquer autenticado
+Query params (master/webservice):
+  - search: string (filtro por nome)
+  - page: number (default 1)
+  - limit: number (default 30, max 200)
+Response 200: { "data": [Representante], "total": number, "page": number, "limit": number }
+Representante: { idExterno, nome, email, telefone, ativo }
+
+### POST /api/erp/representantes
+Cria um ou múltiplos representantes (aceita objeto ou array).
+Auth: API Token Bearer
+Body (objeto ou array): {
+  "idExterno": "string (obrigatório, único)",
+  "nome": "string (obrigatório)",
+  "email": "string|null",
+  "telefone": "string|null",
+  "ativo": boolean (default true)
+}
+Response 200: { "success": true, "data": [Representante], "count": number }
+Response 400: erro de validação com { "campos": { campo: mensagem } }
+Response 409: idExterno já existe
+
+### PATCH /api/erp/representantes/:idExterno
+Atualiza parcialmente um representante.
+Auth: API Token Bearer
+Params: idExterno
+Body (todos opcionais): { "nome": "string", "email": "string|null", "telefone": "string|null", "ativo": boolean }
+Response 200: { "success": true, "data": Representante }
+Response 404: não encontrado
+
+### DELETE /api/erp/representantes/:idExterno
+Remove um representante.
+Auth: API Token Bearer
+Params: idExterno
+Response 200: { "success": true }
+
+---
+
+## MÓDULO: ERP — CLIENTES
+
+### GET /api/erp/clientes
+Lista clientes com paginação.
+Auth: sessão, JWT, ou API Token | Role: qualquer autenticado
+Query params:
+  - search: string (filtro por nome ou CNPJ)
+  - page: number (default 1)
+  - limit: number (default 30, max 200)
+  - status: "ativo"|"inativo"|"restrito"|"bloqueado"|"semAtividade"
+  - representanteId: string (apenas master/webservice)
+Response 200: { "data": [Cliente], "total": number, "page": number, "limit": number }
+Cliente: { idExterno, criadoEm (ms), modificadoEm (ms), nome, fantasia, cnpj, statusDescricao, endereco: { cep, logradouro, numero, bairro, cidade, uf, pais }, representanteId }
+Nota: usuário com role "user" só vê clientes do seu representanteId
+
+### GET /api/erp/clientes/stats
+Retorna estatísticas de clientes.
+Auth: sessão, JWT, ou API Token | Role: qualquer autenticado
+Response 200: { "total": number, "ativos": number, "inativos": number, "restritos": number, "bloqueados": number, "semAtividade": number, "semStatus": number }
+
+### GET /api/erp/clientes/:idExterno/pedidos
+Lista pedidos de um cliente específico.
+Auth: sessão, JWT, ou API Token | Role: qualquer autenticado
+Params: idExterno (ex: "CLI001")
+Query: page, limit (default 50, max 200)
+Response 200: { "data": [Pedido], "total": number, "page": number, "limit": number }
+Nota: role "user" só acessa clientes da sua carteira
+
+### POST /api/erp/clientes
+Cria um ou múltiplos clientes (aceita objeto ou array).
+Auth: API Token Bearer
+Body: {
+  "idExterno": "string (obrigatório, único)",
+  "nome": "string (obrigatório)",
+  "fantasia": "string|null",
+  "cnpj": "string",
+  "statusDescricao": "Ativo|Inativo|Restrição|Bloqueado" (obrigatório),
+  "representanteId": "string (obrigatório, deve existir em representantes)",
+  "criadoEm": number (timestamp ms, opcional),
+  "endereco": {
+    "cep": "string",
+    "logradouro": "string",
+    "numero": number|null,
+    "bairro": "string",
+    "cidade": "string",
+    "uf": "AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO",
+    "pais": "string"
+  }
+}
+Response 200: { "success": true, "data": [Cliente], "count": number }
+Response 400: erro de validação
+Response 409: idExterno já existe
+
+### PATCH /api/erp/clientes/:idExterno
+Atualiza parcialmente um cliente.
+Auth: API Token Bearer
+Params: idExterno
+Body (todos opcionais): mesmos campos do POST, mas nenhum é obrigatório
+Response 200: { "success": true, "data": Cliente }
+Response 404: não encontrado
+
+### DELETE /api/erp/clientes/:idExterno
+Remove um cliente.
+Auth: API Token Bearer
+Params: idExterno
+Response 200: { "success": true }
+
+---
+
+## MÓDULO: ERP — PEDIDOS
+
+### GET /api/erp/pedidos
+Lista pedidos com paginação.
+Auth: sessão, JWT, ou API Token | Role: qualquer autenticado
+Query params:
+  - page: number (default 1)
+  - limit: number (default 30, max 200)
+  - search: string
+  - status: string (ex: "Pendente","Concluído","Expedido","Faturado")
+  - colecaoId: string (ex: "COL004")
+  - clienteId: string (ex: "CLI001")
+  - representanteId: string (apenas master/webservice)
+Response 200: { "data": [Pedido], "total": number, "page": number, "limit": number }
+Pedido: { idExterno, clienteId, cadastradoEm (ms), valorTotal (centavos), status }
+
+### GET /api/erp/pedidos/:idExterno
+Retorna um pedido completo com seus itens.
+Auth: sessão, JWT, ou API Token | Role: qualquer autenticado
+Params: idExterno (ex: "PED0001")
+Response 200: PedidoCompleto com array produtos/itens
+
+### GET /api/erp/pedidos/stats
+Retorna estatísticas de pedidos (somente master).
+Auth: sessão ou JWT | Role: master ou webservice
+Query: representanteId, colecaoId, clienteId (todos opcionais)
+Response 200: { totalPedidos, valorTotal, totalQuantidade, ticketMedio, porStatus: {...} }
+
+### POST /api/erp/pedidos
+Cria um ou múltiplos pedidos (aceita objeto ou array).
+Auth: API Token Bearer
+Body: {
+  "idExterno": "string (obrigatório, único)",
+  "clienteId": "string (obrigatório, deve existir em clientes)",
+  "status": "Pendente|Concluído|Expedido|Faturado|Cancelado",
+  "cadastradoEm": number (timestamp ms, opcional),
+  "descontos": [{ "tipo": "string", "valor": number (centavos) }] (opcional),
+  "produtos": [
+    {
+      "id": "string (idExterno do produto, deve existir)",
+      "precoVendido": number (centavos),
+      "grade": [{ "nome": "string (deve existir na grade do produto)", "quantidade": number }]
+    }
+  ]
+}
+valorTotal é calculado automaticamente: sum(precoVendido * qtd) - sum(descontos)
+Response 200: { "success": true, "data": [Pedido], "count": number }
+Response 400: clienteId, produto ou item de grade não encontrado
+Response 409: idExterno já existe
+
+### PATCH /api/erp/pedidos/:idExterno
+Atualiza parcialmente um pedido.
+Auth: API Token Bearer
+Params: idExterno
+Body (todos opcionais): { "status": "string", "cadastradoEm": number }
+Response 200: { "success": true, "data": Pedido }
+
+### DELETE /api/erp/pedidos/:idExterno
+Remove um pedido.
+Auth: API Token Bearer
+Params: idExterno
+Response 200: { "success": true }
+
+---
+
+## MÓDULO: ERP — PRODUTOS
+
+### GET /api/erp/produtos
+Lista produtos com paginação.
+Auth: sessão, JWT, ou API Token | Role: qualquer autenticado
+Query: page, limit, search, categoriaId (ex: "CAT001"), colecaoId (ex: "COL004"), gradeId
+Response 200: { "data": [Produto], "total": number, "page": number, "limit": number }
+Produto: { idExterno, nome, descricao, preco (centavos), categoriaId, colecaoId, gradeId, ativo }
+
+### POST /api/erp/produtos
+Cria um ou múltiplos produtos.
+Auth: API Token Bearer
+Body: {
+  "idExterno": "string (obrigatório, único)",
+  "nome": "string (obrigatório)",
+  "descricao": "string|null",
+  "preco": number (centavos, obrigatório),
+  "categoriaId": "string (obrigatório, deve existir)",
+  "colecaoId": "string (obrigatório, deve existir)",
+  "gradeId": "string (obrigatório, deve existir)",
+  "ativo": boolean (default true)
+}
+Response 200: { "success": true, "data": [Produto], "count": number }
+
+### PATCH /api/erp/produtos/:idExterno
+Atualiza parcialmente um produto.
+Auth: API Token Bearer
+Body (todos opcionais): mesmos campos do POST
+Response 200: { "success": true, "data": Produto }
+
+### DELETE /api/erp/produtos/:idExterno
+Remove um produto.
+Auth: API Token Bearer
+Response 200: { "success": true }
+
+---
+
+## MÓDULO: ERP — CATEGORIAS
+
+### GET /api/erp/categorias
+Lista todas as categorias.
+Auth: sessão, JWT, ou API Token | Role: qualquer autenticado
+Query: page, limit, search
+Response 200: { "data": [Categoria], "total": number }
+Categoria: { idExterno, nome, descricao }
+
+### POST /api/erp/categorias
+Cria uma ou múltiplas categorias.
+Auth: API Token Bearer
+Body: { "idExterno": "string", "nome": "string", "descricao": "string|null" }
+Response 200: { "success": true, "data": [Categoria], "count": number }
+
+### PATCH /api/erp/categorias/:idExterno
+Atualiza uma categoria.
+Auth: API Token Bearer
+Body (opcionais): { "nome": "string", "descricao": "string|null" }
+Response 200: { "success": true, "data": Categoria }
+
+### DELETE /api/erp/categorias/:idExterno
+Remove uma categoria.
+Auth: API Token Bearer
+Response 200: { "success": true }
+
+---
+
+## MÓDULO: ERP — COLEÇÕES
+
+### GET /api/erp/colecoes
+Lista todas as coleções.
+Auth: sessão, JWT, ou API Token | Role: qualquer autenticado
+Query: page, limit, search, status ("active"|"inactive")
+Response 200: { "data": [Colecao], "total": number }
+Colecao: { idExterno, nome, descricao, status, cadastradoEm (ms) }
+
+### POST /api/erp/colecoes
+Cria uma ou múltiplas coleções.
+Auth: API Token Bearer
+Body: { "idExterno": "string", "nome": "string", "descricao": "string|null", "status": "active|inactive", "cadastradoEm": number|null }
+Response 200: { "success": true, "data": [Colecao], "count": number }
+
+### PATCH /api/erp/colecoes/:idExterno
+Atualiza uma coleção.
+Auth: API Token Bearer
+Body (opcionais): { "nome", "descricao", "status", "cadastradoEm" }
+Response 200: { "success": true, "data": Colecao }
+
+### DELETE /api/erp/colecoes/:idExterno
+Remove uma coleção.
+Auth: API Token Bearer
+Response 200: { "success": true }
+
+---
+
+## MÓDULO: ERP — GRADES E ITENS DE GRADE
+
+### GET /api/erp/grades
+Lista grades de tamanhos/variações.
+Auth: sessão, JWT, ou API Token | Role: qualquer autenticado
+Response 200: { "data": [Grade], "total": number }
+Grade: { idExterno, nome, descricao }
+
+### POST /api/erp/grades
+Cria uma ou múltiplas grades.
+Auth: API Token Bearer
+Body: { "idExterno": "string", "nome": "string", "descricao": "string|null" }
+Response 200: { "success": true, "data": [Grade], "count": number }
+
+### PATCH /api/erp/grades/:idExterno
+Atualiza uma grade.
+Auth: API Token Bearer
+Response 200: { "success": true, "data": Grade }
+
+### DELETE /api/erp/grades/:idExterno
+Remove uma grade.
+Auth: API Token Bearer
+Response 200: { "success": true }
+
+### GET /api/erp/itens-grade
+Lista itens de grade (tamanhos: P, M, G, GG, etc).
+Auth: sessão, JWT, ou API Token | Role: qualquer autenticado
+Query: gradeId (filtro obrigatório recomendado)
+Response 200: { "data": [ItemGrade], "total": number }
+ItemGrade: { idExterno, gradeId, nome, ordem }
+
+### POST /api/erp/itens-grade
+Cria um ou múltiplos itens de grade.
+Auth: API Token Bearer
+Body: { "idExterno": "string", "gradeId": "string (deve existir)", "nome": "string", "ordem": number }
+Response 200: { "success": true, "data": [ItemGrade], "count": number }
+
+### PATCH /api/erp/itens-grade/:idExterno
+Atualiza um item de grade.
+Auth: API Token Bearer
+Response 200: { "success": true, "data": ItemGrade }
+
+### DELETE /api/erp/itens-grade/:idExterno
+Remove um item de grade.
+Auth: API Token Bearer
+Response 200: { "success": true }
+
+---
+
+## MÓDULO: ERP — TÍTULOS FINANCEIROS
+
+### GET /api/erp/titulos
+Lista títulos financeiros (contas a receber).
+Auth: sessão, JWT, ou API Token | Role: qualquer autenticado
+Query:
+  - page: number (default 1)
+  - limit: number (default 30, max 200)
+  - search: string
+  - clienteId: string
+  - status: "aberto"|"pago"|"vencido"|"cancelado"
+  - dataVencimentoInicio: string (YYYY-MM-DD)
+  - dataVencimentoFim: string (YYYY-MM-DD)
+Response 200: { "data": [Titulo], "total": number }
+Titulo: { idExterno, clienteId, valor (centavos), dataEmissao, dataVencimento, dataPagamento, status, descricao }
+
+---
+
+## MÓDULO: REPRESENTANTE — METAS
+
+### GET /api/rep/metas
+Retorna os grupos de metas do representante autenticado.
+Auth: sessão, JWT, ou API Token | Role: user com representanteId
+Response 200: Array de MetaGrupo
+MetaGrupo: {
+  grupoId: number,
+  grupoNome: string,
+  colecaoIdExterno: string,
+  colecaoNome: string,
+  empresaId: string,
+  bronze: number (em peças/unidades),
+  prata: number (em peças/unidades),
+  ouro: number (em peças/unidades),
+  totalUnidades: number (total vendido pelo rep nessa coleção),
+  inicioMeta: string (ISO date),
+  fimMeta: string (ISO date),
+  criadoEm: string,
+  atualizadoEm: string
+}
+Nota: bronze/prata/ouro são metas em número de PEÇAS (não em reais)
+
+---
+
+## MÓDULO: REPRESENTANTE — ANALYTICS
+
+### GET /api/rep/analytics
+Retorna dados analíticos de vendas do representante.
+Auth: sessão, JWT, ou API Token | Role: user com representanteId
+Query:
+  - colecaoId: string (opcional, filtra por coleção ex: "COL004")
+  - groupBy: "day"|"week"|"month" (default "day")
+Response 200: {
+  "clientesAtivos": number,
+  "clientesAtendidos": number,
+  "summary": {
+    "totalValor": number (centavos),
+    "totalPedidos": number,
+    "totalQuantidade": number,
+    "ticketMedio": number (centavos)
+  },
+  "chart": [{ "periodo": "YYYY-MM-DD", "valor": number, "quantidade": number }],
+  "topProdutos": [{ "produtoId": "string", "nome": "string", "quantidade": number, "valor": number }],
+  "topCategorias": [{ "categoriaId": "string", "nome": "string", "quantidade": number, "valor": number }],
+  "topClientes": [{ "clienteId": "string", "nome": "string", "quantidade": number, "valor": number }],
+  "topCidades": [{ "cidade": "string", "uf": "string", "quantidade": number, "valor": number }]
+}
+
+---
+
+## MÓDULO: REPRESENTANTE — ASSISTENTE GT (CHATBOT IA)
+
+O Assistente GT é um chatbot com GPT e Function Calling. A comunicação do chat é feita via WebSocket.
+
+### POST /api/rep/chat/sessions
+Cria uma nova sessão de chat.
+Auth: sessão ou JWT | Role: user
+Response 200: { "id": number, "representanteId": "string", "criadoEm": "string", "titulo": "string|null" }
+
+### GET /api/rep/chat/sessions
+Lista sessões de chat do representante.
+Auth: sessão ou JWT | Role: user
+Response 200: Array de sessões ordenadas por data decrescente
+
+### DELETE /api/rep/chat/sessions/:id
+Exclui uma sessão de chat e todo seu histórico.
+Auth: sessão ou JWT | Role: user
+Params: id (número inteiro)
+Response 200: { "success": true }
+
+### GET /api/rep/chat/sessions/:id/messages
+Retorna o histórico de mensagens de uma sessão.
+Auth: sessão ou JWT | Role: user
+Params: id (número inteiro)
+Response 200: Array de { role: "user"|"assistant", content: "string", timestamp: "string" }
+
+### POST /api/rep/chat/ws-token
+Gera um token temporário (30 segundos) para abrir a conexão WebSocket.
+Auth: sessão ou JWT | Role: user
+Response 200: { "token": "string (32 chars)" }
+
+### WebSocket ws://[host]/ws?token=TOKEN&sessionId=ID
+Conexão WebSocket para o chat em tempo real.
+Query: token (obtido em /api/rep/chat/ws-token), sessionId (número)
+Protocolo:
+  ENVIAR: { "type": "message", "content": "texto da pergunta" }
+  RECEBER: { "type": "chunk", "content": "trecho de texto" } (streaming)
+  RECEBER: { "type": "done" } (fim da resposta)
+  RECEBER: { "type": "tool_call", "name": "nome_da_funcao", "status": "running|done" } (function calling)
+  RECEBER: { "type": "error", "message": "mensagem de erro" }
+
+### POST /api/rep/chat/tts
+Converte texto em áudio (Text-to-Speech via OpenAI).
+Auth: sessão ou JWT | Role: user
+Body: { "text": "string (obrigatório)" }
+Response 200: audio/mpeg binário
+Response 400: text obrigatório
+
+### POST /api/rep/chat/transcribe
+Transcreve áudio para texto (Speech-to-Text via OpenAI Whisper).
+Auth: sessão ou JWT | Role: user
+Body: binário de áudio (content-type: audio/* ou application/octet-stream)
+Limit: 25MB
+Response 200: { "text": "string" }
+
+### GET /api/rep/chat/reports/:reportId
+Retorna um relatório HTML gerado pelo assistente.
+Auth: sessão ou JWT | Role: user
+Params: reportId (string UUID)
+Response 200: HTML do relatório
+
+### POST /api/rep/chat/reports/:reportId/share
+Gera um link público compartilhável para o relatório.
+Auth: sessão ou JWT | Role: user
+Params: reportId
+Response 200: { "shareToken": "string", "url": "string (URL completa)" }
+
+### GET /api/public/report/:shareToken
+Acessa um relatório compartilhado publicamente (sem autenticação).
+Auth: nenhuma (público)
+Params: shareToken
+Response 200: HTML do relatório
+
+---
+
+## MÓDULO: REPRESENTANTE — PIPELINE DE VENDAS (KANBAN)
+
+### GET /api/rep/pipeline-boards
+Lista os boards Kanban do representante.
+Auth: sessão ou JWT | Role: user
+Response 200: Array de { id: number, representanteId, nome, estagios: [{ id, boardId, nome, cor, ordem }] }
+
+### POST /api/rep/pipeline-boards
+Cria um novo board Kanban.
+Auth: sessão ou JWT | Role: user
+Body: { "nome": "string (obrigatório)" }
+Response 200: objeto PipelineBoard criado
+
+### PUT /api/rep/pipeline-boards/:id
+Renomeia um board.
+Auth: sessão ou JWT | Role: user
+Params: id (número)
+Body: { "nome": "string (obrigatório)" }
+Response 200: { "success": true }
+
+### DELETE /api/rep/pipeline-boards/:id
+Remove um board e todos seus estágios/pipelines.
+Auth: sessão ou JWT | Role: user
+Params: id (número)
+Response 200: { "success": true }
+
+### POST /api/rep/pipeline-boards/:boardId/estagios
+Adiciona um estágio ao board.
+Auth: sessão ou JWT | Role: user
+Params: boardId (número)
+Body: { "nome": "string (obrigatório)", "cor": "string (hex, default #6366f1)", "ordem": number (default 0) }
+Response 200: objeto PipelineBoardEstagio criado
+
+### PUT /api/rep/pipeline-boards/estagios/:id
+Atualiza um estágio.
+Auth: sessão ou JWT | Role: user
+Params: id (número)
+Body (opcionais): { "nome": "string", "cor": "string", "ordem": number }
+Response 200: { "success": true }
+
+### DELETE /api/rep/pipeline-boards/estagios/:id
+Remove um estágio.
+Auth: sessão ou JWT | Role: user
+Params: id (número)
+Response 200: { "success": true }
+
+### GET /api/rep/pipelines
+Lista pipelines do representante.
+Auth: sessão ou JWT | Role: user
+Response 200: Array de { id, representanteId, nome, boardId, colecaoId, criadoEm }
+
+### GET /api/rep/pipelines/:id
+Retorna um pipeline específico.
+Auth: sessão ou JWT | Role: user
+Params: id (número)
+Response 200: objeto Pipeline ou 404
+
+### POST /api/rep/pipelines
+Cria um novo pipeline.
+Auth: sessão ou JWT | Role: user
+Body: { "nome": "string (obrigatório)", "boardId": number (obrigatório), "colecaoId": "string (obrigatório)" }
+Response 200: objeto Pipeline criado
+
+### DELETE /api/rep/pipelines/:id
+Remove um pipeline e todos seus cards.
+Auth: sessão ou JWT | Role: user
+Params: id (número)
+Response 200: { "success": true }
+
+### GET /api/rep/pipelines/:id/cards
+Lista cards de um pipeline.
+Auth: sessão ou JWT | Role: user
+Params: id (número)
+Response 200: Array de { id, pipelineId, estagioId, clienteId, notas, ordem, criadoEm }
+
+### POST /api/rep/pipelines/:id/cards
+Adiciona um card ao pipeline.
+Auth: sessão ou JWT | Role: user
+Params: id (pipelineId)
+Body: { "estagioId": number (obrigatório), "clienteId": "string (obrigatório)", "notas": "string|null", "ordem": number (default 0) }
+Response 200: objeto PipelineCard criado
+
+### PUT /api/rep/pipeline-cards/:id
+Move um card para outro estágio.
+Auth: sessão ou JWT | Role: user
+Params: id (número do card)
+Body: { "estagioId": number, "ordem": number }
+Response 200: { "success": true }
+
+### DELETE /api/rep/pipeline-cards/:id
+Remove um card.
+Auth: sessão ou JWT | Role: user
+Params: id (número)
+Response 200: { "success": true }
+
+---
+
+## MÓDULO: METAS (Administração — role: master)
+
+### GET /api/master/meta-grupos
+Lista todos os grupos de metas.
+Auth: sessão ou JWT | Role: master
+Response 200: Array de MetaGrupo
+
+### POST /api/master/meta-grupos
+Cria um grupo de meta.
+Auth: sessão ou JWT | Role: master
+Body: {
+  "nome": "string (obrigatório)",
+  "colecaoIdExterno": "string (obrigatório)",
+  "empresaId": "string (obrigatório)",
+  "bronze": number (peças),
+  "prata": number (peças),
+  "ouro": number (peças),
+  "inicioMeta": "string (ISO date)",
+  "fimMeta": "string (ISO date)"
+}
+Response 201: MetaGrupo criado
+
+### PATCH /api/master/meta-grupos/:id
+Atualiza um grupo de meta.
+Auth: sessão ou JWT | Role: master
+Params: id (número)
+Body (opcionais): mesmos campos do POST
+Response 200: MetaGrupo atualizado
+
+### DELETE /api/master/meta-grupos/:id
+Remove um grupo de meta.
+Auth: sessão ou JWT | Role: master
+Params: id (número)
+Response 200: { "success": true }
+
+### GET /api/master/meta-grupos/:id/reps
+Lista representantes vinculados a um grupo de meta.
+Auth: sessão ou JWT | Role: master
+Params: id (número)
+Response 200: Array de { repId, representanteId, grupoId }
+
+### POST /api/master/meta-grupos/:id/reps
+Vincula representantes a um grupo de meta.
+Auth: sessão ou JWT | Role: master
+Params: id (número)
+Body: { "representanteIds": ["string"] }
+Response 200: { "success": true, "added": number }
+
+### DELETE /api/master/meta-grupos/:id/reps/:repId
+Desvincula um representante de um grupo de meta.
+Auth: sessão ou JWT | Role: master
+Params: id (grupoId), repId (idExterno do representante)
+Response 200: { "success": true }
+
+---
+
+## MÓDULO: CONFIGURAÇÃO DO AGENTE (role: master)
+
+### GET /api/master/agent-config
+Retorna todas as configurações do Assistente GT.
+Auth: sessão ou JWT | Role: master
+Response 200: Array de { key, value }
+Chaves disponíveis:
+  - system_prompt: prompt do sistema do assistente
+  - tts_voice: voz do TTS (alloy|echo|fable|onyx|nova|shimmer)
+  - tts_model: modelo TTS (tts-1|tts-1-hd)
+  - tts_speed: velocidade da fala (0.25–4.0, default 1.0)
+  - tts_voice_prompt: prompt para personalização da voz
+
+### PUT /api/master/agent-config
+Atualiza uma configuração do agente.
+Auth: sessão ou JWT | Role: master
+Body: { "key": "string", "value": "string" }
+Response 200: { key, value }
+
+---
+
+## MÓDULO: LOGS E TOKENS DO CHAT (role: master)
+
+### GET /api/master/agent-logs
+Lista logs de uso do assistente.
+Auth: sessão ou JWT | Role: master
+Query: representanteId, limit (default 100)
+Response 200: Array de logs de interação
+
+### GET /api/master/agent-logs/representantes
+Lista representantes que já usaram o assistente.
+Auth: sessão ou JWT | Role: master
+Response 200: Array de { representanteId, totalSessoes, totalMensagens }
+
+### GET /api/master/chat-tokens/stats
+Estatísticas de consumo de tokens do chat por período.
+Auth: sessão ou JWT | Role: master
+Response 200: { totalTokens, totalCusto, porRepresentante: [...] }
+
+### GET /api/master/chat-tokens/representantes
+Lista representantes com consumo de tokens.
+Auth: sessão ou JWT | Role: master
+Response 200: Array de { representanteId, tokens, custo }
+
+### GET /api/master/chat-tokens
+Histórico de tokens por sessão.
+Auth: sessão ou JWT | Role: master
+Query: representanteId, limit
+Response 200: Array de registros de tokens por sessão
+
+---
+
+## CÓDIGOS DE ERRO COMUNS
+
+400 Bad Request: dados inválidos ou campos obrigatórios ausentes
+  { "error": "mensagem" } ou { "success": false, "error": "mensagem", "campos": { campo: descricao } }
+
+401 Unauthorized: não autenticado ou token expirado
+  { "error": "Nao autenticado" }
+
+403 Forbidden: autenticado mas sem permissão
+  { "error": "Acesso restrito ao usuario master" }
+
+404 Not Found: recurso não encontrado
+  { "success": false, "error": "idExterno '...' nao encontrado" }
+
+409 Conflict: recurso já existe (idExterno duplicado)
+  { "success": false, "error": "idExterno '...' ja existe na entidade ..." }
+
+500 Internal Server Error: erro interno do servidor
+  { "error": "mensagem técnica" }
+
+---
+
+## CONVENÇÕES
+
+- Valores monetários: todos em CENTAVOS (integer). Ex: R$19,90 = 1990
+- Metas de venda: em PEÇAS (unidades), não em reais
+- Timestamps: Unix timestamp em milissegundos (Number)
+- Datas ISO: formato "YYYY-MM-DD" ou "YYYY-MM-DDTHH:mm:ss.sssZ"
+- idExterno: identificador de negócio (string), único por entidade, definido pelo ERP/integração
+- Paginação: page (começa em 1), limit (max 200), resposta inclui total
+- Arrays aceitos: POST nos endpoints ERP aceitam objeto único OU array de objetos
+
+---
+
+## NOTAS PARA DESENVOLVIMENTO MOBILE
+
+1. Use POST /api/mobile/login para autenticar
+2. Salve accessToken (localStorage/SecureStorage) e refreshToken (SecureStorage)
+3. Envie "Authorization: Bearer <accessToken>" em todas as requisições
+4. Intercepte respostas 401: chame POST /api/mobile/refresh e repita a requisição original
+5. O WebSocket do Assistente GT requer um token temporário: POST /api/rep/chat/ws-token antes de abrir a conexão WS
+6. Para permissões de microfone (TTS/STT): Android necessita RECORD_AUDIO no AndroidManifest.xml; iOS necessita NSMicrophoneUsageDescription no Info.plist
