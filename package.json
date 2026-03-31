@@ -7,7 +7,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "git": "git add . && git commit -m && git push"
+    "git": "git add . && git commit -m 'dev' && git push"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
