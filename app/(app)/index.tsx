@@ -1,4 +1,5 @@
 import { FontAwesome } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -6,6 +7,7 @@ import {
     Dimensions,
     Image,
     Modal,
+    Platform,
     Pressable,
     RefreshControl,
     ScrollView,
@@ -14,10 +16,8 @@ import {
     Text,
     TouchableOpacity,
     useColorScheme,
-    View,
-    Platform
+    View
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { LineChart } from 'react-native-chart-kit';
 import Svg, { Path } from 'react-native-svg';
 import api from '../../api/api';
@@ -297,7 +297,7 @@ export default function DashboardScreen() {
                 <View style={styles.headerTitleArea}>
                     <Text style={[styles.userName, { color: THEME.text }]}>Olá, {user?.nomeCompleto?.split(' ')[0] || user?.username}</Text>
                     <Text style={[styles.headerSubtitle, { color: THEME.secondaryText }]}>
-                        Meta vigente: {selectedMeta?.grupoNome || ''}
+                        {selectedMeta?.grupoNome || ''}
                     </Text>
                     <Text style={[{ fontSize: 12, marginTop: 2}, { color: THEME.secondaryText }]}>
                         {selectedMeta ? formatDateRange(selectedMeta.inicioMeta, selectedMeta.fimMeta) : '...'}

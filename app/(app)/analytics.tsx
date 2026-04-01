@@ -163,13 +163,7 @@ export default function AnalyticsScreen() {
     </View>
   );
 
-  if (loading && !refreshing) {
-    return (
-      <View style={[styles.centered, { backgroundColor: THEME.bg }]}>
-        <ActivityIndicator size="small" color={THEME.accent} />
-      </View>
-    );
-  }
+  // Removido o return separado do loading para evitar flicker no cabeçalho
 
   const getChartLabels = () => {
     const rawData = data?.chart || [];
@@ -212,18 +206,25 @@ export default function AnalyticsScreen() {
   };
 
   return (
-    <ScrollView 
-      style={[styles.container, { backgroundColor: THEME.bg }]}
-      contentContainerStyle={styles.scrollContent}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={THEME.accent} />}
-    >
+    <View style={[styles.container, { backgroundColor: THEME.bg }]}>
       <Stack.Screen options={{ 
         headerShown: true,
-        title: 'Analytics',
+        title: 'Histórico de Metas',
         headerLargeTitle: true,
         headerBackTitle: 'Voltar',
+        headerTransparent: Platform.OS === 'ios',
+        headerBlurEffect: isDark ? 'dark' : 'light',
         headerStyle: { backgroundColor: THEME.bg },
       }} />
+
+      {loading && !refreshing ? (
+         <View style={styles.centered}><ActivityIndicator color={THEME.accent} size="small" /></View>
+      ) : (
+        <ScrollView 
+          style={styles.container}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={THEME.accent} />}
+        >
 
       {/* FILTER ZONE (Coleções Only) */}
       <View style={styles.filterArea}>
@@ -422,7 +423,9 @@ export default function AnalyticsScreen() {
       </View>
       
       <View style={{ height: 100 }} />
-    </ScrollView>
+        </ScrollView>
+      )}
+    </View>
   );
 }
 
@@ -430,7 +433,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { 
     paddingHorizontal: 16, 
-    paddingTop: Platform.OS === 'ios' ? 140 : 20, // Acomoda o Large Title do iOS
+    paddingTop: Platform.OS === 'ios' ? 20 : 20, 
     paddingBottom: 100 
   },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },

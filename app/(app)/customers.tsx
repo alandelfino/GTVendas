@@ -2,22 +2,20 @@ import { FontAwesome } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+    ActionSheetIOS,
     ActivityIndicator,
     Dimensions,
     FlatList,
+    Linking,
     Modal,
+    Platform,
     RefreshControl,
     ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
     useColorScheme,
-    View,
-    Linking,
-    Platform,
-    TextInput,
-    ActionSheetIOS,
-    Alert
+    View
 } from 'react-native';
 import api from '../../api/api';
 
@@ -542,7 +540,10 @@ export default function CustomersScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  listContent: { paddingBottom: 100 },
+  listContent: { 
+    paddingHorizontal: 0, 
+    paddingBottom: 100 
+  },
   listHeader: { paddingHorizontal: 16, marginTop: 8, marginBottom: 8 },
   statsCounter: { fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
   itemContainer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
