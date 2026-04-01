@@ -4,21 +4,22 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Animated,
-    Dimensions,
-    Easing,
-    FlatList,
-    KeyboardAvoidingView,
-    Linking,
-    Platform,
-    Pressable,
-    Share,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    View
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  Easing,
+  FlatList,
+  KeyboardAvoidingView,
+  Linking,
+  Platform,
+  Pressable,
+  Share,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  useColorScheme,
+  View
 } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -27,18 +28,6 @@ import api from '../../api/api';
 import { useAuth } from '../../context/AuthContext';
 
 const { width } = Dimensions.get('window');
-
-const COLORS = {
-  primary: '#0066CC',
-  background: '#FFFFFF',
-  assistantBubble: '#E9ECEF',
-  userBubble: '#0066CC',
-  textMain: '#1C1E21',
-  textSecondary: '#65676B',
-  inputBg: '#F0F2F5',
-  border: '#E4E6EB',
-  danger: '#FF4757',
-};
 
 interface Message {
   id: number | string;
@@ -64,7 +53,31 @@ export default function ChatScreen() {
   const { user } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+
+  const THEME = {
+    primary: '#007AFF',
+    background: isDark ? '#000000' : '#F2F2F7',
+    assistantBubble: isDark ? '#1C1C1E' : '#FFFFFF',
+    userBubble: '#007AFF',
+    textMain: isDark ? '#FFFFFF' : '#000000',
+    textSecondary: isDark ? '#8E8E93' : '#8E8E93',
+    inputBg: isDark ? '#1C1C1E' : '#FFFFFF',
+    border: isDark ? '#38383A' : '#E5E5EA',
+    danger: '#FF453A', // iOS SystemRed (Vibrant for Dark)
+  };
+
+  const userMarkdownStyles = {
+    body: { color: '#FFFFFF', fontSize: 16, fontWeight: '400' as const },
+    paragraph: { marginVertical: 0 },
+  };
+
+  const assistantMarkdownStyles = {
+    body: { color: THEME.textMain, fontSize: 16, fontWeight: '400' as const },
+    paragraph: { marginVertical: 0 },
+  };
+   
   // Chat State
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
@@ -93,7 +106,7 @@ export default function ChatScreen() {
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: forRecording,
         playsInSilentModeIOS: true,
-        playThroughEarpieceAndroid: false, // Força alto-falante no Android
+        playThroughEarpieceAndroid: false,
         staysActiveInBackground: true,
       });
     } catch (e) {
@@ -107,6 +120,7 @@ export default function ChatScreen() {
     return () => {
       if (sound) sound.unloadAsync();
       if (recording) recording.stopAndUnloadAsync();
+      if (recordTimerRef.current) clearInterval(recordTimerRef.current);
     };
   }, []);
 
@@ -158,7 +172,7 @@ export default function ChatScreen() {
         id: m.id,
         role: m.role,
         content: m.content,
-        isVoice: m.hasAudio || (m.role === 'assistant' && m.hasTts), // Se o bot já tem TTS em cache, tratamos como voz
+        isVoice: m.hasAudio || (m.role === 'assistant' && m.hasTts),
       }));
       setMessages(formattedMessages);
       setTimeout(() => flatListRef.current?.scrollToEnd(), 200);
@@ -236,23 +250,18 @@ export default function ChatScreen() {
             }]);
             break;
           case 'done':
-            // 1. Adiciona a mensagem final localmente para evitar que suma enquanto recarrega
             if (accumulatedText.trim()) {
               setMessages(prev => [...prev, {
                 id: `temp-${Date.now()}`,
                 role: 'assistant',
                 content: accumulatedText,
-                isVoice: false // O loadMessages vai atualizar se tem TTS depois
+                isVoice: false
               }]);
             }
-            
-            // 2. Limpa o estado de streaming
             ws.close();
             setStreamingText('');
             setStreamPhase('idle');
             accumulatedText = '';
-            
-            // 3. Sincroniza com o servidor
             loadMessages(activeSessionId);
             loadSessions();
             break;
@@ -273,7 +282,6 @@ export default function ChatScreen() {
     }
   };
 
-  // Audio Logic: Recording (STT)
   const startRecording = async () => {
     if (recording) return; 
     try {
@@ -287,7 +295,6 @@ export default function ChatScreen() {
       setIsRecording(true);
       setRecordingTime(0);
       
-      // Animação de entrada (Slide)
       Animated.timing(slideAnim, {
         toValue: 1,
         duration: 200,
@@ -295,7 +302,6 @@ export default function ChatScreen() {
         easing: Easing.out(Easing.ease),
       }).start();
 
-      // Animação de pulsar do mic
       Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, { toValue: 1.2, duration: 500, useNativeDriver: true }),
@@ -303,10 +309,9 @@ export default function ChatScreen() {
         ])
       ).start();
 
-      // Timer do áudio
       recordTimerRef.current = setInterval(() => {
         setRecordingTime(prev => prev + 1);
-      }, 1000);
+      }, 1000) as any;
 
       if (sound) await sound.stopAsync();
     } catch (err) {
@@ -318,7 +323,6 @@ export default function ChatScreen() {
     if (!recording) return;
     try {
       setIsRecording(false);
-      // Limpa timer e animações
       if (recordTimerRef.current) clearInterval(recordTimerRef.current);
       pulseAnim.setValue(1);
       
@@ -331,9 +335,7 @@ export default function ChatScreen() {
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
       setRecording(null);
-      if (uri) {
-        transcribeAudio(uri);
-      }
+      if (uri) transcribeAudio(uri);
     } catch (e) {
       console.error('Stop recording error:', e);
     }
@@ -409,36 +411,6 @@ export default function ChatScreen() {
     }
   };
 
-  // Audio Logic: Playback (TTS)
-  const playTTS = async (text: string) => {
-    const cleanText = text.replace(/[*_#`\[\]()]/g, '').replace(/\n/g, '. ').substring(0, 500);
-    try {
-      await configureAudioMode(false);
-      setIsSpeaking(true);
-      const response = await api.post('/api/rep/chat/tts', { text: cleanText }, {
-        responseType: 'arraybuffer'
-      });
-      
-      const uint8 = new Uint8Array(response.data);
-      let binary = '';
-      uint8.forEach(byte => binary += String.fromCharCode(byte));
-      const base64 = btoa(binary);
-
-      const path = (FileSystem.cacheDirectory || '') + 'tts_response.mp3';
-      await FileSystem.writeAsStringAsync(path, base64, { encoding: 'base64' as any });
-
-      const { sound: newSound } = await Audio.Sound.createAsync({ uri: path });
-      setSound(newSound);
-      await newSound.playAsync();
-      newSound.setOnPlaybackStatusUpdate((status: any) => {
-        if (status.didJustFinish) setIsSpeaking(false);
-      });
-    } catch (error) {
-      console.error('TTS error:', error);
-      setIsSpeaking(false);
-    }
-  };
-
   const getToolLabel = (tool: string) => {
     const labels: any = {
       get_resumo_vendas: 'Consultando resumo de vendas...',
@@ -456,10 +428,8 @@ export default function ChatScreen() {
     const [isLoading, setIsLoading] = useState(false);
 
     const getAudioSource = async () => {
-      // 1. Áudio local (acabou de gravar)
       if (message.audioUri) return { uri: message.audioUri };
       
-      // 2. Áudio do Usuário (remoto GET)
       if (message.role === 'user' && message.id) {
         return { 
           uri: `${api.defaults.baseURL}api/rep/chat/messages/${message.id}/audio`,
@@ -467,45 +437,26 @@ export default function ChatScreen() {
         };
       }
 
-      // 3. Áudio do Assistente (POST / tts)
       if (message.role === 'assistant' && message.id) {
         setIsLoading(true);
         try {
-          // Como o endpoint de TTS é um POST, precisamos baixar o blob primeiro
-          // ou tentar um GET se o servidor permitir (vou tentar o POST primeiro)
-          const response = await api.post(`api/rep/chat/messages/${message.id}/tts`, {}, {
-            responseType: 'blob'
-          });
-          
-          // No ambiente mobile (React Native/Expo), precisamos converter o blob para um arquivo local
-          // ou usar um data URI (mais simples para mpeg pequeno)
+          const response = await api.post(`api/rep/chat/messages/${message.id}/tts`, {}, { responseType: 'blob' });
           const reader = new FileReader();
           return new Promise((resolve, reject) => {
             reader.onloadend = () => {
               setIsLoading(false);
               resolve({ uri: reader.result as string });
             };
-            reader.onerror = () => {
-              setIsLoading(false);
-              reject(new Error("Erro ao ler o áudio do assistente"));
-            };
+            reader.onerror = () => { setIsLoading(false); reject(new Error("Erro ao ler o áudio")); };
             reader.readAsDataURL(response.data);
           });
-        } catch (err) {
-          console.error("Erro ao buscar TTS via POST:", err);
-          // Fallback para o endpoint antigo ou apenas erro
-          setIsLoading(false);
-          throw err;
-        }
+        } catch (err) { setIsLoading(false); throw err; }
       }
 
-      // 4. Fallback: Gerar TTS sob demanda (Assistant ou User s/ áudio salvo)
       setIsLoading(true);
       try {
         const cleanText = message.content.replace(/[*_#`\[\]()]/g, '').replace(/\n/g, '. ').substring(0, 500);
-        const response = await api.post('/api/rep/chat/tts', { text: cleanText }, {
-          responseType: 'arraybuffer'
-        });
+        const response = await api.post('/api/rep/chat/tts', { text: cleanText }, { responseType: 'arraybuffer' });
         const uint8 = new Uint8Array(response.data);
         let binary = '';
         uint8.forEach(byte => binary += String.fromCharCode(byte));
@@ -514,11 +465,7 @@ export default function ChatScreen() {
         await FileSystem.writeAsStringAsync(path, base64, { encoding: 'base64' as any });
         message.audioUri = path;
         return { uri: path };
-      } catch (e) {
-        return null;
-      } finally {
-        setIsLoading(false);
-      }
+      } catch (e) { return null; } finally { setIsLoading(false); }
     };
 
     const togglePlayback = async () => {
@@ -539,10 +486,7 @@ export default function ChatScreen() {
               setIsPlaying(status.isPlaying);
               setPosition(status.positionMillis || 0);
               setDuration(status.durationMillis || 1);
-              if (status.didJustFinish) {
-                setIsPlaying(false);
-                setPosition(0);
-              }
+              if (status.didJustFinish) { setIsPlaying(false); setPosition(0); }
             }
           }
         );
@@ -562,16 +506,16 @@ export default function ChatScreen() {
 
     const progress = (position / duration) * 100;
     const isMsgFromUser = message.role === 'user';
-    const iconColor = isMsgFromUser ? '#FFFFFF' : COLORS.primary;
-    const barBgColor = isMsgFromUser ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.1)';
-    const progressBarColor = isMsgFromUser ? '#FFFFFF' : COLORS.primary;
-    const textColor = isMsgFromUser ? '#FFFFFF' : COLORS.textSecondary;
+    const iconColor = isMsgFromUser ? '#FFFFFF' : THEME.primary;
+    const barBgColor = isMsgFromUser ? 'rgba(255,255,255,0.2)' : 'rgba(128,128,128,0.1)';
+    const progressBarColor = isMsgFromUser ? '#FFFFFF' : THEME.primary;
+    const textColor = isMsgFromUser ? 'rgba(255,255,255,0.8)' : THEME.textSecondary;
 
     return (
       <View style={styles.playerContainer}>
         <Pressable onPress={togglePlayback} style={styles.playButtonCompact}>
           {isLoading ? <ActivityIndicator size="small" color={iconColor} /> : 
-          <FontAwesome name={isPlaying ? "pause" : "play"} size={14} color={iconColor} />}
+          <FontAwesome name={isPlaying ? "pause" : "play"} size={12} color={iconColor} />}
         </Pressable>
         <View style={[styles.progressBarBg, { backgroundColor: barBgColor }]}>
           <View style={[styles.progressBarFill, { width: `${progress}%`, backgroundColor: progressBarColor }]} />
@@ -591,12 +535,7 @@ export default function ChatScreen() {
 
     return (
       <View style={[styles.bubbleWrapper, isUser ? styles.userBubbleWrapper : styles.assistantBubbleWrapper]}>
-        {!isUser && (
-          <View style={styles.botIconWrapper}>
-            <FontAwesome name="android" size={12} color="#FFF" />
-          </View>
-        )}
-        <View style={[styles.messageBubble, isUser ? styles.userBubble : styles.assistantBubble]}>
+        <View style={[styles.messageBubble, isUser ? styles.userBubble : [styles.assistantBubble, { backgroundColor: THEME.assistantBubble }]]}>
           <Markdown style={isUser ? userMarkdownStyles : assistantMarkdownStyles}>
             {item.content}
           </Markdown>
@@ -609,37 +548,37 @@ export default function ChatScreen() {
   };
 
   const renderPdfCard = (data: any) => (
-    <View style={styles.assetCard}>
+    <View style={[styles.assetCard, { backgroundColor: THEME.assistantBubble, borderColor: THEME.border }]}>
       <View style={styles.assetHeader}>
-        <FontAwesome name="file-pdf-o" size={20} color="#FF7675" />
-        <Text style={styles.assetTitle}>{data.titulo}</Text>
+        <FontAwesome name="file-pdf-o" size={20} color="#FF453A" />
+        <Text style={[styles.assetTitle, { color: THEME.textMain }]}>{data.titulo}</Text>
       </View>
       <View style={styles.assetActions}>
-        <Pressable style={styles.assetButton} onPress={() => Linking.openURL(`${api.defaults.baseURL}${data.url}`)}>
-          <Text style={styles.assetButtonText}>Abrir</Text>
+        <Pressable style={[styles.assetButton, { backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7' }]} onPress={() => Linking.openURL(`${api.defaults.baseURL}${data.url}`)}>
+          <Text style={[styles.assetButtonText, { color: THEME.primary }]}>Visualizar</Text>
         </Pressable>
-        <Pressable style={styles.assetButton} onPress={() => Share.share({ url: `${api.defaults.baseURL}${data.url}` })}>
-          <Text style={styles.assetButtonText}>Compartilhar</Text>
+        <Pressable style={[styles.assetButton, { backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7' }]} onPress={() => Share.share({ url: `${api.defaults.baseURL}${data.url}` })}>
+          <FontAwesome name="share" size={14} color={THEME.primary} />
         </Pressable>
       </View>
     </View>
   );
 
   const renderMapCard = (data: any) => (
-    <View style={styles.assetCard}>
+    <View style={[styles.assetCard, { backgroundColor: THEME.assistantBubble, borderColor: THEME.border }]}>
       <View style={styles.assetHeader}>
-        <FontAwesome name="map-marker" size={20} color="#00B894" />
-        <Text style={styles.assetTitle}>Rota no Google Maps</Text>
+        <FontAwesome name="map-marker" size={20} color="#32D74B" />
+        <Text style={[styles.assetTitle, { color: THEME.textMain }]}>Rota Sugerida</Text>
       </View>
-      <Pressable style={[styles.assetButton, { marginTop: 10 }]} onPress={() => Linking.openURL(data.mapsUrl)}>
-        <Text style={styles.assetButtonText}>Abrir no Maps</Text>
+      <Pressable style={[styles.assetButton, { marginTop: 10, backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7' }]} onPress={() => Linking.openURL(data.mapsUrl)}>
+        <Text style={[styles.assetButtonText, { color: THEME.primary }]}>Abrir no Apple Maps</Text>
       </Pressable>
     </View>
   );
 
   const renderHtmlCard = (data: any) => (
-    <View style={[styles.assetCard, { height: 350 }]}>
-      <Text style={[styles.assetTitle, { marginBottom: 10 }]}>{data.titulo}</Text>
+    <View style={[styles.assetCard, { height: 350, backgroundColor: THEME.assistantBubble, borderColor: THEME.border }]}>
+      <Text style={[styles.assetTitle, { marginBottom: 10, color: THEME.textMain }]}>{data.titulo}</Text>
       <WebView 
         originWhitelist={['*']}
         source={{ html: data.html }}
@@ -649,27 +588,33 @@ export default function ChatScreen() {
     </View>
   );
 
+  const handleCreateNewSession = () => {
+    createNewSession();
+  };
+
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+    <View style={[styles.container, { backgroundColor: THEME.background }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       <Stack.Screen 
         options={{ 
           headerTitle: () => (
             <View style={styles.headerTitleContainer}>
-              <View style={styles.headerIconCircle}><FontAwesome name="magic" size={16} color="#FFF" /></View>
-              <View style={{ marginLeft: 12 }}>
-                <Text style={styles.headerTitleText}>Assistente GT</Text>
-                <Text style={styles.headerSubtitleText}>Online</Text>
-              </View>
+              <Text style={[styles.headerTitleMain, { color: THEME.textMain }]}>Assistente</Text>
+              <View style={styles.statusDot} />
             </View>
           ),
-          headerStyle: { backgroundColor: '#FFFFFF' },
+          headerStyle: { backgroundColor: THEME.background },
           headerShadowVisible: false,
           headerLeft: () => (
-            <Pressable onPress={() => router.back()} style={{ marginLeft: 10 }}>
-              <FontAwesome name="angle-left" size={24} color={COLORS.textMain} />
+            <Pressable onPress={() => router.back()} style={{ marginLeft: 16 }}>
+              <FontAwesome name="chevron-left" size={18} color={THEME.primary} />
             </Pressable>
           ),
+          headerRight: () => (
+            <Pressable onPress={handleCreateNewSession} style={{ marginRight: 16 }}>
+              <FontAwesome name="plus" size={18} color={THEME.primary} />
+            </Pressable>
+          )
         }} 
       />
 
@@ -680,25 +625,23 @@ export default function ChatScreen() {
         renderItem={renderMessage}
         contentContainerStyle={styles.scrollContent}
         ListFooterComponent={() => (
-          <View style={{ backgroundColor: '#FFFFFF' }}>
+          <View>
             {streamPhase === 'waiting' && (
               <View style={styles.assistantBubbleWrapper}>
-                <View style={styles.botIconWrapper}><FontAwesome name="android" size={12} color="#FFF" /></View>
-                <View style={[styles.messageBubble, styles.assistantBubble, styles.loadingBubble]}>
-                  <ActivityIndicator size="small" color={COLORS.primary} />
-                  <Text style={styles.loadingLabel}>{pendingTool ? getToolLabel(pendingTool) : 'Trabalhando...'}</Text>
+                <View style={[styles.messageBubble, { backgroundColor: THEME.assistantBubble }, styles.loadingBubble]}>
+                  <ActivityIndicator size="small" color={THEME.textSecondary} />
+                  <Text style={[styles.loadingLabel, { color: THEME.textSecondary }]}>{pendingTool ? getToolLabel(pendingTool) : 'digitando...'}</Text>
                 </View>
               </View>
             )}
             {streamPhase === 'streaming' && (
               <View style={styles.assistantBubbleWrapper}>
-                <View style={styles.botIconWrapper}><FontAwesome name="android" size={12} color="#FFF" /></View>
-                <View style={[styles.messageBubble, styles.assistantBubble]}>
+                <View style={[styles.messageBubble, { backgroundColor: THEME.assistantBubble }]}>
                   <Markdown style={assistantMarkdownStyles}>{streamingText}</Markdown>
                 </View>
               </View>
             )}
-            <View style={{ height: 20 }} />
+            <View style={{ height: 120 }} />
           </View>
         )}
         onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
@@ -706,23 +649,24 @@ export default function ChatScreen() {
 
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 80}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+        style={styles.keyboardView}
       >
         <View style={[
           styles.footer, 
-          { paddingBottom: Math.max(insets.bottom, 16) + 30 }
+          { paddingBottom: Math.max(insets.bottom, 16) }
         ]}>
-          <View style={styles.inputWrapper}>
+          <View style={[styles.inputWrapper, { backgroundColor: THEME.inputBg, borderColor: THEME.border }]}>
             {!isRecording && (
               <TextInput
-                style={styles.input}
-                placeholder=""
-                placeholderTextColor={COLORS.textSecondary}
+                style={[styles.input, { color: THEME.textMain }]}
+                placeholder="Mensagem"
+                placeholderTextColor={isDark ? '#48484A' : '#C6C6C8'}
                 value={inputText}
                 onChangeText={setInputText}
                 multiline
                 maxLength={500}
-                editable={!isRecording}
+                editable={streamPhase === 'idle'}
               />
             )}
 
@@ -743,11 +687,11 @@ export default function ChatScreen() {
               >
                 <View style={styles.recordingLeft}>
                   <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                    <FontAwesome name="microphone" size={16} color="#FF4757" />
+                    <View style={styles.recordingDot} />
                   </Animated.View>
-                  <Text style={styles.recordingTimer}>{formatRecordTime(recordingTime)}</Text>
+                  <Text style={[styles.recordingTimer, { color: THEME.danger }]}>{formatRecordTime(recordingTime)}</Text>
                 </View>
-                <Text style={styles.cancelText}>solte para cancelar</Text>
+                <Text style={[styles.cancelText, { color: THEME.textSecondary }]}>Solte para enviar</Text>
               </Animated.View>
             )}
 
@@ -759,18 +703,18 @@ export default function ChatScreen() {
                   onPressOut={stopRecording}
                 >
                   <FontAwesome 
-                    name={isSpeaking ? "volume-up" : "microphone"} 
-                    size={18} 
-                    color={isRecording ? COLORS.danger : isSpeaking ? COLORS.primary : COLORS.textSecondary} 
+                    name="microphone" 
+                    size={20} 
+                    color={isRecording ? THEME.danger : THEME.primary} 
                   />
                 </Pressable>
               ) : (
                 <Pressable 
-                  style={[styles.sendButton, streamPhase !== 'idle' && styles.sendButtonDisabled]}
+                  style={[styles.sendButton, streamPhase !== 'idle' && styles.sendButtonDisabled, { backgroundColor: THEME.primary }]}
                   onPress={() => sendMessage()}
                   disabled={streamPhase !== 'idle'}
                 >
-                  <FontAwesome name="paper-plane" size={16} color="#FFF" />
+                  <FontAwesome name="arrow-up" size={16} color="#FFF" />
                 </Pressable>
               )}
             </View>
@@ -782,73 +726,111 @@ export default function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-  headerTitleContainer: { flexDirection: 'row', alignItems: 'center' },
-  headerIconCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
-  headerTitleText: { fontSize: 16, fontWeight: '700', color: '#1C1E21' },
-  headerSubtitleText: { fontSize: 12, color: '#65676B' },
-  scrollContent: { padding: 20, backgroundColor: '#FFFFFF' },
-  bubbleWrapper: { flexDirection: 'row', marginBottom: 16, width: '100%' },
+  container: { flex: 1 },
+  headerTitleContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  headerTitleMain: { fontSize: 17, fontWeight: '600', color: '#000000' },
+  statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#34C759', marginLeft: 6, marginTop: 2 },
+  scrollContent: { padding: 16, paddingTop: 10 },
+  bubbleWrapper: { flexDirection: 'row', marginBottom: 12, width: '100%' },
   userBubbleWrapper: { justifyContent: 'flex-end' },
   assistantBubbleWrapper: { justifyContent: 'flex-start' },
-  botIconWrapper: { width: 24, height: 24, borderRadius: 12, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center', marginRight: 8, marginTop: 4 },
-  messageBubble: { maxWidth: '85%', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 18 },
-  userBubble: { backgroundColor: COLORS.userBubble, borderBottomRightRadius: 4 },
-  assistantBubble: { backgroundColor: COLORS.assistantBubble, borderBottomLeftRadius: 4 },
+  messageBubble: { 
+    maxWidth: '82%', 
+    paddingHorizontal: 16, 
+    paddingVertical: 10, 
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  userBubble: { 
+    backgroundColor: '#007AFF', 
+    borderBottomRightRadius: 4,
+  },
+  assistantBubble: { 
+    backgroundColor: '#FFFFFF', 
+    borderBottomLeftRadius: 4,
+  },
+  playerContainer: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 0.5,
+    borderTopColor: 'rgba(0,0,0,0.05)',
+  },
+  playButtonCompact: { width: 28, height: 28, justifyContent: 'center', alignItems: 'center' },
+  progressBarBg: { flex: 1, height: 3, borderRadius: 1.5, marginHorizontal: 10 },
+  progressBarFill: { height: '100%', borderRadius: 1.5 },
+  durationText: { fontSize: 11, fontWeight: '500', width: 35, textAlign: 'right' },
+  assetCard: { 
+    backgroundColor: '#FFFFFF', 
+    borderRadius: 16, 
+    padding: 16, 
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+  },
+  assetHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  assetTitle: { fontSize: 16, fontWeight: '600', color: '#1C1C1E', marginLeft: 12, flex: 1 },
+  assetActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  assetButton: { backgroundColor: '#F2F2F7', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
+  assetButtonText: { fontSize: 14, fontWeight: '600', color: '#007AFF' },
   loadingBubble: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  loadingLabel: { fontSize: 14, color: COLORS.textSecondary, fontStyle: 'italic' },
-  footer: { backgroundColor: '#FFF', paddingHorizontal: 20, paddingVertical: 15, borderTopWidth: 1, borderTopColor: COLORS.border },
-  inputPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.inputBg, borderRadius: 30, paddingHorizontal: 16, minHeight: 40, marginBottom: 16 },
+  loadingLabel: { fontSize: 13, color: '#8E8E93' },
+  keyboardView: { position: 'absolute', bottom: 0, left: 0, right: 0 },
+  footer: { 
+    paddingHorizontal: 16, 
+    paddingVertical: 10,
+    backgroundColor: 'transparent',
+  },
   inputWrapper: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    backgroundColor: COLORS.inputBg, 
-    borderRadius: 30, 
-    paddingHorizontal: 16, 
-    minHeight: 40, 
-    marginBottom: 16,
-    flex: 1
+    backgroundColor: '#FFFFFF', 
+    borderRadius: 24, 
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
   },
-  input: { flex: 1, fontSize: 16, color: COLORS.textMain, paddingVertical: 10 },
-  inputActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  micButton: { padding: 8 },
-  micButtonActive: { backgroundColor: '#FFE3E3', borderRadius: 20 },
-  sendButton: { width: 30, height: 30, marginEnd: -10, borderRadius: 20, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
-  sendButtonDisabled: { backgroundColor: '#B2BEC3' },
-  assetCard: { backgroundColor: '#F8F9FA', borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border, width: '90%' },
-  assetHeader: { flexDirection: 'row', alignItems: 'center' },
-  assetTitle: { fontSize: 15, fontWeight: '700', color: COLORS.textMain, marginLeft: 10, flex: 1 },
-  assetActions: { flexDirection: 'row', marginTop: 12, gap: 8 },
-  assetButton: { flex: 1, backgroundColor: '#FFF', padding: 10, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
-  assetButtonText: { fontSize: 14, fontWeight: '600', color: COLORS.primary },
-  playerContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 12, width: '100%' },
-  playButtonCompact: { width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-  progressBarBg: { flex: 1, height: 4, borderRadius: 2, overflow: 'hidden' },
-  progressBarFill: { height: '100%', borderRadius: 2 },
-  durationText: { fontSize: 10, marginLeft: 8, minWidth: 25 },
-  recordingOverlay: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+  input: { 
+    flex: 1, 
+    fontSize: 16, 
+    color: '#000000', 
+    maxHeight: 120, 
+    paddingTop: 8, 
+    paddingBottom: 8,
+    paddingHorizontal: 8,
+  },
+  inputActions: { flexDirection: 'row', alignItems: 'center', marginLeft: 8 },
+  micButton: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
+  micButtonActive: { backgroundColor: 'rgba(255, 59, 48, 0.1)', borderRadius: 18 },
+  sendButton: { 
+    width: 32, 
+    height: 32, 
+    borderRadius: 16, 
+    backgroundColor: '#007AFF', 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  sendButtonDisabled: { opacity: 0.5 },
+  recordingOverlay: { 
+    flex: 1, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
     justifyContent: 'space-between',
-    paddingRight: 10,
+    paddingHorizontal: 8,
   },
-  recordingLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  recordingTimer: {
-    fontSize: 16,
-    color: COLORS.textMain,
-    fontWeight: '600',
-  },
-  cancelText: {
-    fontSize: 14,
-    color: '#65676B',
-    fontStyle: 'italic',
-  }
+  recordingLeft: { flexDirection: 'row', alignItems: 'center' },
+  recordingDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF3B30' },
+  recordingTimer: { fontSize: 16, fontWeight: '600', color: '#FF3B30', marginLeft: 8 },
+  cancelText: { fontSize: 14, color: '#8E8E93', fontWeight: '500' },
 });
-
-const userMarkdownStyles = { body: { color: '#FFFFFF', fontSize: 16 }, paragraph: { marginVertical: 0 } };
-const assistantMarkdownStyles: any = { body: { color: COLORS.textMain, fontSize: 16, lineHeight: 24 }, paragraph: { marginVertical: 4 } };

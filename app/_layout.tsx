@@ -4,9 +4,9 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import { View, useColorScheme } from 'react-native';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/components/useColorScheme';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 
 export {
@@ -21,6 +21,8 @@ function InitialLayout() {
   const { user, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
 
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
@@ -44,22 +46,23 @@ function InitialLayout() {
     const inAuthGroup = segments[0] === 'login';
 
     if (!user && !inAuthGroup) {
-      // Redirect to the login page if not logged in
       router.replace('/login');
     } else if (user && inAuthGroup) {
-      // Redirect to the app group if logged in
       router.replace('/(app)');
     }
   }, [user, segments, isLoading]);
 
   if (!loaded || isLoading) {
-    return null;
+    return <View style={{ flex: 1, backgroundColor: isDark ? '#000' : '#F2F2F7' }} />;
   }
 
   return (
-    <Stack>
-      <Stack.Screen name="login" options={{ headerShown: false }} />
-      <Stack.Screen name="(app)" options={{ headerShown: false }} />
+    <Stack screenOptions={{ 
+      headerShown: false,
+      contentStyle: { backgroundColor: isDark ? '#000000' : '#F2F2F7' }
+    }}>
+      <Stack.Screen name="login" />
+      <Stack.Screen name="(app)" />
       <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
     </Stack>
   );

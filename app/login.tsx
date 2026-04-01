@@ -1,8 +1,23 @@
 import React, { useState } from 'react';
-import { StyleSheet, TextInput, Pressable, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { Text, View } from '@/components/Themed';
+import { 
+  StyleSheet, 
+  TextInput, 
+  Pressable, 
+  ActivityIndicator, 
+  KeyboardAvoidingView, 
+  Platform, 
+  ScrollView,
+  TouchableOpacity,
+  useColorScheme,
+  StatusBar,
+  View,
+  Text,
+  Dimensions
+} from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { FontAwesome } from '@expo/vector-icons';
+
+const { width, height } = Dimensions.get('window');
 
 export default function LoginScreen() {
   const [username, setUsername] = useState('');
@@ -11,10 +26,24 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const { signIn } = useAuth();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+
+  const THEME = {
+    bg: isDark ? '#000000' : '#F2F2F7',
+    card: isDark ? '#1C1C1E' : '#FFFFFF',
+    text: isDark ? '#FFFFFF' : '#000000',
+    secondaryText: isDark ? '#8E8E93' : '#636366',
+    primary: isDark ? '#0A84FF' : '#007AFF', // iOS SystemBlue
+    accent: '#6C5CE7', // GT Brand Purple
+    border: isDark ? '#38383A' : '#C6C6C8',
+    inputBg: isDark ? '#1C1C1E' : '#FFFFFF',
+    errorText: '#FF453A', // iOS SystemRed
+  };
 
   async function handleLogin() {
     if (!username || !password) {
-      setError('Por favor, preencha todos os campos.');
+      setError('Campos obrigatórios vazios');
       return;
     }
 
@@ -24,7 +53,7 @@ export default function LoginScreen() {
     try {
       await signIn(username, password);
     } catch (err: any) {
-      setError(err.message || 'Falha ao autenticar. Verifique suas credenciais.');
+      setError(err.message || 'Credenciais inválidas');
     } finally {
       setIsSubmitting(false);
     }
@@ -33,55 +62,69 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
+      style={[styles.container, { backgroundColor: THEME.bg }]}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent} 
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.header}>
-          <View style={styles.logoBadge}>
-            <Text style={styles.logoText}>GT</Text>
+          <View style={[styles.logoContainer, { backgroundColor: THEME.accent, shadowColor: THEME.accent }]}>
+             <Text style={styles.logoBadgeText}>GT</Text>
           </View>
-          <Text style={styles.title}>GT Vendas</Text>
-          <Text style={styles.subtitle}>Faça login para continuar</Text>
+          <Text style={[styles.title, { color: THEME.text }]}>GT Vendas</Text>
+          <Text style={[styles.subtitle, { color: THEME.secondaryText }]}>Plataforma do Representante</Text>
         </View>
 
-        <View style={styles.form}>
+        <View style={styles.formContainer}>
           {error && (
-            <View style={styles.errorBadge}>
-              <FontAwesome name="exclamation-circle" size={16} color="#FF7675" />
-              <Text style={styles.errorText}>{error}</Text>
+            <View style={styles.errorContainer}>
+               <FontAwesome name="exclamation-circle" size={14} color={THEME.errorText} />
+               <Text style={[styles.errorText, { color: THEME.errorText }]}>{error}</Text>
             </View>
           )}
 
-          <View style={styles.inputContainer}>
-            <FontAwesome name="user" size={20} color="#636E72" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Usuário"
-              placeholderTextColor="#B2BEC3"
-              value={username}
-              onChangeText={setUsername}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-          </View>
-
-          <View style={styles.inputContainer}>
-            <FontAwesome name="lock" size={20} color="#636E72" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Senha"
-              placeholderTextColor="#B2BEC3"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              autoCapitalize="none"
-            />
+          {/* Inset Grouped Form Style */}
+          <View style={[styles.fieldset, { backgroundColor: THEME.card, borderColor: THEME.border }]}>
+            <View style={styles.inputRow}>
+              <View style={styles.inputIconWrapper}>
+                <FontAwesome name="user" size={16} color={THEME.primary} />
+              </View>
+              <TextInput
+                style={[styles.input, { color: THEME.text }]}
+                placeholder="Nome de usuário"
+                placeholderTextColor={isDark ? '#48484A' : '#C6C6C8'}
+                value={username}
+                onChangeText={setUsername}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+            
+            <View style={[styles.separator, { backgroundColor: THEME.border }]} />
+            
+            <View style={styles.inputRow}>
+              <View style={styles.inputIconWrapper}>
+                <FontAwesome name="lock" size={16} color={THEME.primary} />
+              </View>
+              <TextInput
+                style={[styles.input, { color: THEME.text }]}
+                placeholder="Senha de acesso"
+                placeholderTextColor={isDark ? '#48484A' : '#C6C6C8'}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                autoCapitalize="none"
+              />
+            </View>
           </View>
 
           <Pressable 
             style={({ pressed }) => [
               styles.loginButton,
-              { opacity: pressed || isSubmitting ? 0.8 : 1 }
+              { backgroundColor: THEME.accent, shadowColor: THEME.accent, opacity: pressed || isSubmitting ? 0.8 : 1 }
             ]}
             onPress={handleLogin}
             disabled={isSubmitting}
@@ -89,10 +132,19 @@ export default function LoginScreen() {
             {isSubmitting ? (
               <ActivityIndicator color="#FFF" />
             ) : (
-              <Text style={styles.loginButtonText}>Entrar</Text>
+              <Text style={styles.loginButtonText}>Acessar Conta</Text>
             )}
           </Pressable>
+
+          <TouchableOpacity style={styles.forgotButton}>
+            <Text style={[styles.forgotText, { color: THEME.primary }]}>Esqueceu a senha?</Text>
+          </TouchableOpacity>
         </View>
+
+          <View style={styles.footer}>
+            <Text style={[styles.footerText, { color: THEME.secondaryText }]}>© 2026 Grupo Titanium</Text>
+            <Text style={[styles.footerVersion, { color: THEME.secondaryText }]}>Versão 1.0.0</Text>
+          </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -101,102 +153,130 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
   },
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 30,
+    paddingHorizontal: 28,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 50,
-    backgroundColor: 'transparent',
+    marginBottom: 48,
+    marginTop: 20,
   },
-  logoBadge: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    backgroundColor: '#6C5CE7',
+  logoContainer: {
+    width: 90,
+    height: 90,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
-    shadowColor: '#6C5CE7',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 15,
-    elevation: 8,
+    marginBottom: 24,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.35,
+    shadowRadius: 18,
+    elevation: 10,
   },
-  logoText: {
+  logoBadgeText: {
     color: '#FFFFFF',
-    fontSize: 32,
+    fontSize: 38,
     fontWeight: '900',
+    letterSpacing: -2,
   },
   title: {
-    fontSize: 32,
+    fontSize: 34,
     fontWeight: '800',
-    color: '#2D3436',
+    letterSpacing: -1,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#636E72',
-    marginTop: 5,
+    fontSize: 17,
+    fontWeight: '400',
+    marginTop: 4,
+    letterSpacing: -0.2,
   },
-  form: {
-    backgroundColor: 'transparent',
+  formContainer: {
+    width: '100%',
   },
-  errorBadge: {
-    backgroundColor: '#FFF5F5',
-    padding: 12,
-    borderRadius: 12,
+  fieldset: {
+    borderRadius: 14,
+    borderWidth: Platform.OS === 'ios' ? 0.5 : 1,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#FFEAEA',
+    height: 54,
+    paddingHorizontal: 16,
   },
-  errorText: {
-    color: '#FF7675',
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 10,
-    flex: 1,
-  },
-  inputContainer: {
-    flexDirection: 'row',
+  inputIconWrapper: {
+    width: 30,
     alignItems: 'center',
-    backgroundColor: '#F9F9F9',
-    borderRadius: 15,
-    marginBottom: 20,
-    paddingHorizontal: 15,
-    height: 60,
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
-  },
-  inputIcon: {
-    marginRight: 15,
+    justifyContent: 'center',
+    marginRight: 8,
   },
   input: {
     flex: 1,
-    fontSize: 16,
-    color: '#2D3436',
+    fontSize: 17,
+    height: '100%',
+    paddingTop: 2, // Fine tune vertical alignment
+  },
+  separator: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 54, // Align with input text start
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    gap: 6,
+  },
+  errorText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   loginButton: {
-    backgroundColor: '#6C5CE7',
-    height: 60,
-    borderRadius: 15,
+    height: 56,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 10,
-    shadowColor: '#6C5CE7',
-    shadowOffset: { width: 0, height: 4 },
+    marginTop: 24,
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowRadius: 12,
+    elevation: 6,
   },
   loginButtonText: {
-    color: '#FFF',
-    fontSize: 18,
-    fontWeight: 'bold',
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: -0.4,
+  },
+  forgotButton: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  forgotText: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  footer: {
+    marginTop: 60,
+    paddingBottom: 40,
+    alignItems: 'center',
+  },
+  footerText: {
+    fontSize: 12,
+    fontWeight: '500',
+    letterSpacing: 0.2,
+  },
+  footerVersion: {
+    fontSize: 11,
+    marginTop: 4,
+    opacity: 0.6,
   },
 });
