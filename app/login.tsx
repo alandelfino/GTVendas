@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   StyleSheet, 
   TextInput, 
@@ -14,16 +14,20 @@ import {
   Text,
   Dimensions
 } from 'react-native';
+import * as LocalAuthentication from 'expo-local-authentication';
+import * as SecureStore from 'expo-secure-store';
 import { useAuth } from '../context/AuthContext';
 import { FontAwesome } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
 
 export default function LoginScreen() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [biometricSupported, setBiometricSupported] = useState(false);
+    const [authType, setAuthType] = useState<LocalAuthentication.AuthenticationType[]>([]);
 
   const { signIn } = useAuth();
   const colorScheme = useColorScheme();
@@ -41,6 +45,53 @@ export default function LoginScreen() {
     errorText: '#FF453A', // iOS SystemRed
   };
 
+  useEffect(() => {
+    checkBiometrics();
+  }, []);
+
+  async function checkBiometrics() {
+    const hasHardware = await LocalAuthentication.hasHardwareAsync();
+    const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+    const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+    
+    if (hasHardware && isEnrolled) {
+      setBiometricSupported(true);
+      setAuthType(types);
+      
+      // Auto-trigger if we have saved credentials
+      const savedUser = await SecureStore.getItemAsync('saved_id');
+      if (savedUser) {
+        handleBiometricAuth();
+      }
+    }
+  }
+
+  async function handleBiometricAuth() {
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Acesse o painel do Grupo Titanium',
+        fallbackLabel: 'Usar senha',
+        disableDeviceFallback: false,
+      });
+
+      if (result.success) {
+        const savedUser = await SecureStore.getItemAsync('saved_id');
+        const savedPass = await SecureStore.getItemAsync('saved_pass');
+        
+        if (savedUser && savedPass) {
+          setIsSubmitting(true);
+          await signIn(savedUser, savedPass);
+        } else {
+          setError('Nenhuma biometria vinculada ainda. Logue manualmente uma vez.');
+        }
+      }
+    } catch (err) {
+      console.error('Biometric error:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   async function handleLogin() {
     if (!username || !password) {
       setError('Campos obrigatórios vazios');
@@ -52,6 +103,9 @@ export default function LoginScreen() {
 
     try {
       await signIn(username, password);
+      // After success, link biometrics
+      await SecureStore.setItemAsync('saved_id', username);
+      await SecureStore.setItemAsync('saved_pass', password);
     } catch (err: any) {
       setError(err.message || 'Credenciais inválidas');
     } finally {
@@ -121,20 +175,35 @@ export default function LoginScreen() {
             </View>
           </View>
 
-          <Pressable 
-            style={({ pressed }) => [
-              styles.loginButton,
-              { backgroundColor: THEME.accent, shadowColor: THEME.accent, opacity: pressed || isSubmitting ? 0.8 : 1 }
-            ]}
-            onPress={handleLogin}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="#FFF" />
-            ) : (
-              <Text style={styles.loginButtonText}>Acessar Conta</Text>
+          <View style={styles.buttonContainer}>
+            <Pressable 
+              style={({ pressed }) => [
+                styles.loginButton,
+                { backgroundColor: THEME.accent, shadowColor: THEME.accent, opacity: pressed || isSubmitting ? 0.8 : 1 }
+              ]}
+              onPress={handleLogin}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#FFF" />
+              ) : (
+                <Text style={styles.loginButtonText}>Acessar Conta</Text>
+              )}
+            </Pressable>
+
+            {biometricSupported && (
+              <TouchableOpacity 
+                style={[styles.biometricButton, { borderColor: THEME.border }]}
+                onPress={handleBiometricAuth}
+              >
+                <FontAwesome 
+                  name={authType.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION) ? "user-circle-o" : "dot-circle-o"} 
+                  size={24} 
+                  color={THEME.primary} 
+                />
+              </TouchableOpacity>
             )}
-          </Pressable>
+          </View>
 
           <TouchableOpacity style={styles.forgotButton}>
             <Text style={[styles.forgotText, { color: THEME.primary }]}>Esqueceu a senha?</Text>
@@ -239,12 +308,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
+  buttonContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 24,
+    gap: 12,
+  },
   loginButton: {
+    flex: 1,
     height: 56,
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 24,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
@@ -255,6 +330,15 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     letterSpacing: -0.4,
+  },
+  biometricButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 14,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
   },
   forgotButton: {
     marginTop: 20,

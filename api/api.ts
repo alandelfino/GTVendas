@@ -1,5 +1,6 @@
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import { router } from 'expo-router';
 
 const API_BASE_URL = 'https://0d8b0788-6dc6-4c83-b907-494ffd52f0e9-00-1wy28f0g3amh1.spock.replit.dev/';
 
@@ -42,10 +43,16 @@ api.interceptors.response.use((response: AxiosResponse) => response, async (erro
         return api(originalRequest);
       }
     } catch (refreshError) {
-      // Se falhar o refresh, removemos os tokens (logout)
+      // Se falhar o refresh, removemos os tokens (logout) e redirecionamos
       await SecureStore.deleteItemAsync('accessToken');
       await SecureStore.deleteItemAsync('refreshToken');
+      router.replace('/login');
     }
+  } else if (error.response?.status === 401) {
+    // Se for 401 mas não tiver refreshToken ou não for tentativa de retry, limpamos tudo
+    await SecureStore.deleteItemAsync('accessToken');
+    await SecureStore.deleteItemAsync('refreshToken');
+    router.replace('/login');
   }
   
   return Promise.reject(error);

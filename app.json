@@ -18,7 +18,8 @@
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Precisamos de acesso ao microfone para a funcionalidade do app.",
         "NSLocationWhenInUseUsageDescription": "Precisamos de sua localização para mostrar pontos próximos.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Precisamos de sua localização para funcionamento contínuo."
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Precisamos de sua localização para funcionamento contínuo.",
+        "NSFaceIDUsageDescription": "Usamos o FaceID para fornecer acesso rápido e seguro ao painel do Grupo Titanium."
       }
     },
     "android": {
@@ -43,7 +44,8 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-local-authentication"
     ],
     "experiments": {
       "typedRoutes": true

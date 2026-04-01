@@ -213,64 +213,68 @@ export default function ChatScreen() {
       const baseUrl = api.defaults.baseURL || '';
       const wsProtocol = baseUrl.startsWith('https') ? 'wss' : 'ws';
       const wsHost = baseUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
-      const wsUrl = `${wsProtocol}://${wsHost}/ws/chat?token=${wsToken}&sessionId=${activeSessionId}`;
+      const wsUrl = `${wsProtocol}://${wsHost}/ws?token=${wsToken}&sessionId=${activeSessionId}`;
       
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
-
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ 
-          type: 'message',
-          content: textToSend,
-          sessionId: activeSessionId 
-        }));
-      };
-
-      ws.onmessage = async (e) => {
-        const data = JSON.parse(e.data);
-        switch (data.type) {
-          case 'tool_call':
-            setPendingTool(data.tool || 'Consultando dados...');
-            break;
-          case 'chunk':
-            setStreamPhase('streaming');
-            setPendingTool(null);
-            accumulatedText += data.text;
-            setStreamingText(accumulatedText);
-            break;
-          case 'pdf':
-          case 'map_embed':
-          case 'html_widget':
-            setMessages(prev => [...prev, {
-              id: `asset-${Date.now()}`,
-              role: 'assistant',
-              content: '',
-              type: data.type,
-              data: data
-            }]);
-            break;
-          case 'done':
-            if (accumulatedText.trim()) {
-              setMessages(prev => [...prev, {
-                id: `temp-${Date.now()}`,
-                role: 'assistant',
-                content: accumulatedText,
-                isVoice: false
-              }]);
-            }
-            ws.close();
-            setStreamingText('');
-            setStreamPhase('idle');
-            accumulatedText = '';
-            loadMessages(activeSessionId);
-            loadSessions();
-            break;
-          case 'error':
-            setStreamPhase('idle');
-            ws.close();
-            break;
-        }
-      };
+ 
+       ws.onopen = () => {
+         ws.send(JSON.stringify({ 
+           type: 'message',
+           content: textToSend,
+           sessionId: activeSessionId 
+         }));
+       };
+ 
+       ws.onmessage = async (e) => {
+         const data = JSON.parse(e.data);
+         switch (data.type) {
+           case 'tool_call':
+             setPendingTool(data.tool || 'Consultando dados...');
+             break;
+           case 'chunk':
+             setStreamPhase('streaming');
+             setPendingTool(null);
+             accumulatedText += data.content; // Alinhado com a doc da API (content, não text)
+             setStreamingText(accumulatedText);
+             break;
+           case 'pdf':
+           case 'map_embed':
+           case 'html_widget':
+             setMessages(prev => [...prev, {
+               id: `asset-${Date.now()}`,
+               role: 'assistant',
+               content: '',
+               type: data.type,
+               data: data
+             }]);
+             break;
+           case 'done':
+             if (accumulatedText.trim()) {
+               setMessages(prev => [...prev, {
+                 id: `bot-${Date.now()}`,
+                 role: 'assistant',
+                 content: accumulatedText,
+                 isVoice: false
+               }]);
+             }
+             ws.close();
+             setStreamingText('');
+             setStreamPhase('idle');
+             accumulatedText = '';
+             
+             // Aguarda o backend persistir a mensagem antes de sincronizar o histórico
+             setTimeout(() => {
+               loadMessages(activeSessionId);
+               loadSessions();
+             }, 800);
+             break;
+           case 'error':
+             setStreamPhase('idle');
+             ws.close();
+             break;
+         }
+       };
 
       ws.onclose = () => {
         setStreamPhase('idle');
@@ -597,6 +601,7 @@ export default function ChatScreen() {
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       <Stack.Screen 
         options={{ 
+          headerShown: true,
           headerTitle: () => (
             <View style={styles.headerTitleContainer}>
               <Text style={[styles.headerTitleMain, { color: THEME.textMain }]}>Assistente</Text>
