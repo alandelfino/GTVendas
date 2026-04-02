@@ -115,8 +115,7 @@ export default function CustomersScreen() {
   const fetchHistory = async (customerId: string) => {
     setHistoryLoading(true);
     try {
-      const url = `/api/erp/clientes/${customerId}/pedidos`;
-      const response = await api.get(url);
+      const response = await api.get('/api/erp/pedidos', { params: { clienteId: customerId } });
       const orders = response.data.data || response.data;
       setOrderHistory(Array.isArray(orders) ? orders : []);
     } catch (error) {

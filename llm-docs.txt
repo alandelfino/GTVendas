@@ -272,14 +272,27 @@ Query params:
   - clienteId: string (ex: "CLI001")
   - representanteId: string (apenas master/webservice)
 Response 200: { "data": [Pedido], "total": number, "page": number, "limit": number }
-Pedido: { idExterno, cliente: { idExterno, nome, fantasia, cnpj, cidade, uf, statusDescricao }, cadastradoEm (ms), valorTotal (centavos), status }
+Pedido: {
+  idExterno: string,
+  cliente: {
+    idExterno: string,
+    nome: string,
+    fantasia: string | null,
+    cnpj: string | null,
+    cidade: string | null,
+    uf: string | null,
+    statusDescricao: string | null
+  } | null,
+  cadastradoEm: number (timestamp ms),
+  valorTotal: number (centavos),
+  status: string
+}
 
 ### GET /api/erp/pedidos/:idExterno
 Retorna um pedido completo com seus itens.
 Auth: sessão, JWT, ou API Token | Role: qualquer autenticado
 Params: idExterno (ex: "PED0001")
 Response 200: PedidoCompleto com array produtos/itens
-Nota: os itens na lista de produtos usam 'id' para a referência externa.
 
 ### GET /api/erp/pedidos/stats
 Retorna estatísticas de pedidos (somente master).
@@ -300,7 +313,7 @@ Body: {
     {
       "id": "string (idExterno do produto, deve existir)",
       "precoVendido": number (centavos),
-      "grade": [{ "nome": "string (tamanho)", "quantidade": number }]
+      "grade": [{ "nome": "string (deve existir na grade do produto)", "quantidade": number }]
     }
   ]
 }
@@ -704,10 +717,11 @@ Params: id (número)
 Response 200: { "success": true }
 
 ### GET /api/rep/pipelines/:id/cards
-Lista cards de um pipeline.
+Lista cards de um pipeline com dados do cliente embutidos.
 Auth: sessão ou JWT | Role: user
 Params: id (número)
-Response 200: Array de { id, pipelineId, estagioId, clienteId, notas, ordem, criadoEm }
+Response 200: Array de { id, pipelineId, estagioId, cliente: { idExterno, nome, fantasia, cidade, uf }, notas, ordem, criadoEm, atualizadoEm }
+Obs: nome=razão social; fantasia=nome fantasia (pode ser null); todos os campos de cliente podem ser null se o cliente não for encontrado no cadastro local.
 
 ### POST /api/rep/pipelines/:id/cards
 Adiciona um card ao pipeline.
