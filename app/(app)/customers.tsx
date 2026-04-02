@@ -1,4 +1,4 @@
-import { FontAwesome } from '@expo/vector-icons';
+import { FontAwesome, Ionicons } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -273,7 +273,7 @@ export default function CustomersScreen() {
         <Text style={[styles.itemSub, { color: THEME.secondary }]}>{item.cnpj}</Text>
         <Text style={[styles.itemLoc, { color: THEME.secondary }]}>{item.endereco.cidade}, {item.endereco.uf}</Text>
       </View>
-      <FontAwesome name="chevron-right" size={14} color={THEME.border} />
+      <Ionicons name="chevron-forward" size={16} color={THEME.border} />
     </TouchableOpacity>
   );
 
@@ -343,9 +343,10 @@ export default function CustomersScreen() {
                     style={styles.actionBtn} 
                     disabled={!selectedCustomer.telefone}
                     onPress={() => Linking.openURL(`tel:${selectedCustomer.telefone}`)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
                     <View style={[styles.actionIcon, { backgroundColor: selectedCustomer.telefone ? THEME.accent : THEME.border }]}>
-                      <FontAwesome name="phone" size={18} color="#FFF" />
+                      <Ionicons name="call" size={18} color="#FFF" />
                     </View>
                     <Text style={[styles.actionLabel, !selectedCustomer.telefone && { color: THEME.border }]}>Ligar</Text>
                   </TouchableOpacity>
@@ -354,9 +355,10 @@ export default function CustomersScreen() {
                     style={styles.actionBtn} 
                     disabled={!selectedCustomer.telefone}
                     onPress={() => Linking.openURL(`whatsapp://send?phone=55${selectedCustomer.telefone?.replace(/\D/g,'')}`)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
                     <View style={[styles.actionIcon, { backgroundColor: selectedCustomer.telefone ? '#25D366' : THEME.border }]}>
-                      <FontAwesome name="whatsapp" size={18} color="#FFF" />
+                      <Ionicons name="logo-whatsapp" size={18} color="#FFF" />
                     </View>
                     <Text style={[styles.actionLabel, !selectedCustomer.telefone && { color: THEME.border }]}>Whats</Text>
                   </TouchableOpacity>
@@ -365,9 +367,10 @@ export default function CustomersScreen() {
                     style={styles.actionBtn} 
                     disabled={!selectedCustomer.email}
                     onPress={() => Linking.openURL(`mailto:${selectedCustomer.email}`)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
                     <View style={[styles.actionIcon, { backgroundColor: selectedCustomer.email ? THEME.orange : THEME.border }]}>
-                      <FontAwesome name="envelope" size={16} color="#FFF" />
+                      <Ionicons name="mail" size={18} color="#FFF" />
                     </View>
                     <Text style={[styles.actionLabel, !selectedCustomer.email && { color: THEME.border }]}>E-mail</Text>
                   </TouchableOpacity>
@@ -375,8 +378,9 @@ export default function CustomersScreen() {
                   <TouchableOpacity 
                     style={styles.actionBtn}
                     onPress={() => handleMapPress(selectedCustomer)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
-                    <View style={[styles.actionIcon, { backgroundColor: THEME.accent }]}><FontAwesome name="map-marker" size={18} color="#FFF" /></View>
+                    <View style={[styles.actionIcon, { backgroundColor: THEME.accent }]}><Ionicons name="map" size={18} color="#FFF" /></View>
                     <Text style={styles.actionLabel}>Mapa</Text>
                   </TouchableOpacity>
                 </View>
@@ -385,10 +389,16 @@ export default function CustomersScreen() {
 
             <View style={styles.tabArea}>
               <View style={[styles.segmented, { backgroundColor: isDark ? '#1C1C1E' : 'rgba(118, 118, 128, 0.12)' }]}>
-                <TouchableOpacity onPress={() => setDetailTab('info')} style={[styles.segBtn, detailTab === 'info' && styles.segBtnActive]}>
+                <TouchableOpacity 
+                  onPress={() => setDetailTab('info')} 
+                  style={[styles.segBtn, detailTab === 'info' && (isDark ? { backgroundColor: '#636366' } : styles.segBtnActive)]}
+                >
                   <Text style={[styles.segText, { color: detailTab === 'info' ? THEME.text : THEME.secondary }]}>Infos</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => setDetailTab('history')} style={[styles.segBtn, detailTab === 'history' && styles.segBtnActive]}>
+                <TouchableOpacity 
+                  onPress={() => setDetailTab('history')} 
+                  style={[styles.segBtn, detailTab === 'history' && (isDark ? { backgroundColor: '#636366' } : styles.segBtnActive)]}
+                >
                   <Text style={[styles.segText, { color: detailTab === 'history' ? THEME.text : THEME.secondary }]}>Pedidos</Text>
                 </TouchableOpacity>
               </View>
@@ -431,7 +441,7 @@ export default function CustomersScreen() {
                                <Text style={[styles.historyValue, { color: THEME.text }]}>{formatCurrency(order.valorTotal)}</Text>
                                <Text style={[styles.historyStatus, { color: THEME.secondary, fontSize: 11 }]}>{order.status}</Text>
                              </View>
-                             <FontAwesome name="chevron-right" size={12} color={THEME.secondary} />
+                             <Ionicons name="chevron-forward" size={12} color={THEME.secondary} />
                            </View>
                         </TouchableOpacity>
                       ))
@@ -454,9 +464,13 @@ export default function CustomersScreen() {
           >
             <View style={[styles.modalBase, { backgroundColor: THEME.bg }]}>
               <View style={styles.modalHeader}>
-                <TouchableOpacity onPress={() => setOrderModalVisible(false)} style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <FontAwesome name="chevron-left" size={14} color={THEME.accent} style={{ marginRight: 6 }} />
-                  <Text style={{ color: THEME.accent, fontSize: 17 }}>Voltar</Text>
+                <TouchableOpacity 
+                  onPress={() => setOrderModalVisible(false)} 
+                  style={{ flexDirection: 'row', alignItems: 'center' }}
+                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                >
+                  <Ionicons name="chevron-back" size={24} color={THEME.accent} />
+                  <Text style={{ color: THEME.accent, fontSize: 17, marginLeft: 5 }}>Voltar</Text>
                 </TouchableOpacity>
                 <View style={{ alignItems: 'center' }}>
                    <Text style={[styles.headerTitle, { color: THEME.text }]}>Pedido #{selectedOrderDetail?.idExterno}</Text>
@@ -538,19 +552,27 @@ export default function CustomersScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   listContent: { 
-    paddingHorizontal: 0, 
+    paddingHorizontal: 16, 
+    paddingTop: 20,
     paddingBottom: 100 
   },
   listHeader: { paddingHorizontal: 16, marginTop: 8, marginBottom: 8 },
   statsCounter: { fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
-  itemContainer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
+  itemContainer: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    paddingHorizontal: 16, 
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginBottom: 10,
+  },
   avatar: { width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
   avatarText: { fontSize: 18, fontWeight: '700' },
   itemContent: { flex: 1 },
   itemName: { fontSize: 17, fontWeight: '700', marginBottom: 2 },
   itemSub: { fontSize: 13, marginBottom: 1 },
   itemLoc: { fontSize: 12 },
-  fullSeparator: { height: 0.5, marginLeft: 81 },
+  fullSeparator: { height: 0, opacity: 0 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   
   modalBase: { flex: 1 },

@@ -1,4 +1,4 @@
-import { FontAwesome } from '@expo/vector-icons';
+import { FontAwesome, Ionicons } from '@expo/vector-icons';
 import { RecordingOptions, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus, useAudioRecorder } from 'expo-audio';
 import * as FileSystem from 'expo-file-system';
 import { Stack, useRouter } from 'expo-router';
@@ -21,12 +21,14 @@ import {
     TextInput,
     TouchableOpacity,
     useColorScheme,
-    View
+    View,
+    Modal
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import Markdown from 'react-native-markdown-display';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
+import { BlurView } from 'expo-blur';
 import api from '../../api/api';
 import { useAuth } from '../../context/AuthContext';
 
@@ -44,6 +46,7 @@ interface Message {
   hasTts?: boolean;
   transcricao?: string | null;
   audioMime?: string | null;
+  createdAt?: string | number | Date;
 }
 
 interface ChatSession {
@@ -90,6 +93,8 @@ export default function ChatScreen() {
   const [streamPhase, setStreamPhase] = useState<'idle' | 'waiting' | 'streaming'>('idle');
   const [streamingText, setStreamingText] = useState('');
   const [pendingTool, setPendingTool] = useState<string | null>(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isEditingSessions, setIsEditingSessions] = useState(false);
   
   // Audio Configuration (Global Engine)
   const recorder = useAudioRecorder({
@@ -213,6 +218,19 @@ export default function ChatScreen() {
     }
   };
 
+  const deleteSession = async (id: number) => {
+    try {
+      await api.delete(`/api/rep/chat/sessions/${id}`);
+      setSessions(prev => prev.filter(s => s.id !== id));
+      if (activeSessionId === id) {
+        setActiveSessionId(null);
+        setMessages([]);
+      }
+    } catch (e) {
+      console.error('Delete session error:', e);
+    }
+  };
+
   const formatRecordTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -230,10 +248,11 @@ export default function ChatScreen() {
         role: m.role,
         content: m.content,
         isVoice: m.hasAudio || (m.role === 'assistant' && m.hasTts),
+        createdAt: m.criadoEm || m.createdAt || new Date().toISOString(),
       }));
       console.log(`--- [CHAT DEBUG] Sincronizando Mensagens: ${formattedMessages.length} do Banco ---`);
       setMessages(formattedMessages);
-      setTimeout(() => flatListRef.current?.scrollToEnd(), 200);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 200);
     } catch (error) {
       console.error('--- [CHAT DEBUG ERROR] Erro ao carregar mensagens:', error);
     } finally {
@@ -256,7 +275,8 @@ export default function ChatScreen() {
         id: `user-${Date.now()}`,
         role: 'user',
         content: textToSend.trim(),
-        isVoice: false
+        isVoice: false,
+        createdAt: new Date().toISOString()
       };
       setMessages(prev => [...prev, userMessage]);
     }
@@ -322,7 +342,8 @@ export default function ChatScreen() {
                           id: 'streaming-bot',
                           role: 'assistant',
                           content: accumulatedText,
-                          isVoice: false
+                          isVoice: false,
+                          createdAt: new Date().toISOString()
                         }];
                       }
                     });
@@ -336,7 +357,8 @@ export default function ChatScreen() {
                       role: 'assistant',
                       content: '',
                       type: data.type,
-                      data: data
+                      data: data,
+                      createdAt: new Date().toISOString()
                     }]);
                     break;
 
@@ -455,7 +477,8 @@ export default function ChatScreen() {
       role: 'user',
       content: 'Transcrevendo áudio...',
       isVoice: true,
-      audioUri: uri
+      audioUri: uri,
+      createdAt: new Date().toISOString()
     };
     setMessages(prev => [...prev, initialVoiceMsg]);
     setStreamPhase('waiting');
@@ -645,30 +668,46 @@ export default function ChatScreen() {
     );
   };
 
+  const formatMsgTime = (date?: string | number | Date) => {
+    try {
+      const d = date ? new Date(date) : new Date();
+      return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+    } catch (e) {
+      return '--:--';
+    }
+  };
+
   const renderMessage = ({ item }: { item: Message }) => {
     const isUser = item.role === 'user';
-    if (item.type === 'pdf') return renderPdfCard(item.data);
-    if (item.type === 'map_embed') return renderMapCard(item.data);
-    if (item.type === 'html_widget') return renderHtmlCard(item.data);
+    
+    // Restoration of assets cards support
+    if ((item as any).type === 'pdf') return renderPdfCard((item as any).data);
+    if ((item as any).type === 'map_embed') return renderMapCard((item as any).data);
+    if ((item as any).type === 'html_widget') return renderHtmlCard((item as any).data);
 
     const isStreaming = item.id === 'streaming-bot';
 
     return (
       <View style={[styles.bubbleWrapper, isUser ? styles.userBubbleWrapper : styles.assistantBubbleWrapper]}>
-        <View style={[styles.messageBubble, isUser ? styles.userBubble : [styles.assistantBubble, { backgroundColor: THEME.assistantBubble }]]}>
-          {isUser && item.content === 'Transcrevendo áudio...' ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <ActivityIndicator size="small" color="#FFFFFF" />
-              <Text style={{ color: '#FFFFFF', fontSize: 16 }}>Transcrevendo áudio...</Text>
-            </View>
-          ) : (
-            <Markdown style={isUser ? userMarkdownStyles : assistantMarkdownStyles}>
-              {item.content + (isStreaming ? ' ▌' : '')}
-            </Markdown>
-          )}
-          {(item.role === 'assistant' && !isStreaming) && (
-            <MessageAudioPlayer message={item} />
-          )}
+        <View style={{ alignItems: isUser ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
+          <View style={[styles.messageBubble, isUser ? styles.userBubble : [styles.assistantBubble, { backgroundColor: THEME.assistantBubble }]]}>
+            {isUser && item.content === 'Transcrevendo áudio...' ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+                <Text style={{ color: '#FFFFFF', fontSize: 16 }}>Transcrevendo áudio...</Text>
+              </View>
+            ) : (
+              <Markdown style={isUser ? userMarkdownStyles : assistantMarkdownStyles}>
+                {item.content + (isStreaming ? ' ▌' : '')}
+              </Markdown>
+            )}
+            {(item.role === 'assistant' && !isStreaming) && (
+              <MessageAudioPlayer message={item} />
+            )}
+          </View>
+          <Text style={[styles.messageTime, { color: THEME.textSecondary }]}>
+            {formatMsgTime(item.createdAt)}
+          </Text>
         </View>
       </View>
     );
@@ -735,14 +774,30 @@ export default function ChatScreen() {
           headerStyle: { backgroundColor: THEME.background },
           headerShadowVisible: false,
           headerLeft: () => (
-            <Pressable onPress={() => router.back()} style={{ marginLeft: 16 }}>
-              <FontAwesome name="chevron-left" size={18} color={THEME.primary} />
-            </Pressable>
+            <TouchableOpacity 
+              onPress={() => router.back()} 
+              style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 0 }}
+              hitSlop={{ top: 15, bottom: 15, left: 20, right: 20 }}
+            >
+              <Ionicons name="chevron-back" size={28} color={THEME.primary} />
+              <Text style={{ color: THEME.primary, fontSize: 17, marginLeft: 5 }}>Voltar</Text>
+            </TouchableOpacity>
           ),
           headerRight: () => (
-            <Pressable onPress={handleCreateNewSession} style={{ marginRight: 16 }}>
-              <FontAwesome name="plus" size={18} color={THEME.primary} />
-            </Pressable>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 18, marginRight: 8 }}>
+              <Pressable 
+                onPress={() => setIsHistoryOpen(true)}
+                hitSlop={{ top: 15, bottom: 15, left: 10, right: 10 }}
+              >
+                <Ionicons name="list-outline" size={26} color={THEME.primary} />
+              </Pressable>
+              <Pressable 
+                onPress={handleCreateNewSession}
+                hitSlop={{ top: 15, bottom: 15, left: 10, right: 10 }}
+              >
+                <Ionicons name="add" size={32} color={THEME.primary} />
+              </Pressable>
+            </View>
           )
         }} 
       />
@@ -889,6 +944,72 @@ export default function ChatScreen() {
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      <Modal
+        visible={isHistoryOpen}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setIsHistoryOpen(false)}
+      >
+        <View style={[styles.historyModalContainer, { backgroundColor: THEME.background }]}>
+          <View style={styles.modalHandle} />
+          
+          <View style={styles.historyHeader}>
+            <Text style={[styles.historyTitle, { color: THEME.textMain }]}>Conversas Recentes</Text>
+            <TouchableOpacity 
+              onPress={() => setIsEditingSessions(!isEditingSessions)}
+              hitSlop={{ top: 15, bottom: 15, left: 20, right: 20 }}
+            >
+              <Text style={{ color: THEME.primary, fontSize: 17, fontWeight: '500' }}>
+                {isEditingSessions ? 'OK' : 'Editar'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <FlatList
+            data={sessions}
+            keyExtractor={(item) => item.id.toString()}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 60 }}
+            ItemSeparatorComponent={() => <View style={[styles.listSeparator, { backgroundColor: THEME.border }]} />}
+            renderItem={({ item }) => (
+              <View style={[styles.sessionRow, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' }]}>
+                {isEditingSessions && (
+                  <TouchableOpacity 
+                    style={{ paddingRight: 10 }}
+                    onPress={() => deleteSession(item.id)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Ionicons name="remove-circle" size={22} color={THEME.danger} />
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity 
+                  style={styles.sessionMainAction}
+                  onPress={() => {
+                    setActiveSessionId(item.id);
+                    setIsHistoryOpen(false);
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.sessionTitle, { color: THEME.textMain }]} numberOfLines={1}>
+                      {item.titulo || `Conversa #${item.id}`}
+                    </Text>
+                    <Text style={[styles.sessionDate, { color: THEME.textSecondary }]}>
+                      {new Date(item.atualizadoEm).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color="#C4C4C6" />
+                </TouchableOpacity>
+              </View>
+            )}
+            ListEmptyComponent={
+              <View style={styles.emptySessions}>
+                <Ionicons name="chatbubbles-outline" size={48} color={THEME.textSecondary} />
+                <Text style={[styles.emptySessionsText, { color: THEME.textSecondary }]}>Nenhuma conversa enviada</Text>
+              </View>
+            }
+          />
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -903,7 +1024,6 @@ const styles = StyleSheet.create({
   userBubbleWrapper: { justifyContent: 'flex-end' },
   assistantBubbleWrapper: { justifyContent: 'flex-start' },
   messageBubble: { 
-    maxWidth: '82%', 
     paddingHorizontal: 16, 
     paddingVertical: 10, 
     borderRadius: 20,
@@ -1009,4 +1129,62 @@ const styles = StyleSheet.create({
   recordingDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF3B30' },
   recordingTimer: { fontSize: 16, fontWeight: '600', color: '#FF3B30', marginLeft: 8 },
   cancelText: { fontSize: 14, color: '#8E8E93', fontWeight: '500' },
+  messageTime: {
+    fontSize: 10,
+    marginTop: 4,
+    marginHorizontal: 8,
+    fontWeight: '500',
+  },
+  historyModalContainer: { flex: 1 },
+  modalHandle: { 
+    width: 36, 
+    height: 5, 
+    backgroundColor: '#C6C6C8', 
+    borderRadius: 3, 
+    alignSelf: 'center', 
+    marginTop: 8,
+    marginBottom: 10
+  },
+  historyHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+  },
+  closeModalBtn: { 
+    width: 28, 
+    height: 28, 
+    borderRadius: 14, 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  historyTitle: { fontSize: 20, fontWeight: '700' },
+  sessionRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center',
+    borderRadius: 12,
+    overflow: 'hidden',
+    paddingLeft: 16,
+    marginHorizontal: 16,
+    marginBottom: 1, // Simulates hairline separator in a cleaner way for inset rows
+  },
+  sessionMainAction: { 
+    flex: 1,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: 12,
+  },
+  listSeparator: {
+    height: 0.5,
+    marginLeft: 16, // Inset separator style
+  },
+  sessionTitle: { fontSize: 16, fontWeight: '500', marginBottom: 2 },
+  sessionDate: { fontSize: 13 },
+  btnDeleteRow: {
+    padding: 14,
+  },
+  emptySessions: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 100 },
+  emptySessionsText: { fontSize: 16, marginTop: 16, fontWeight: '500' }
 });

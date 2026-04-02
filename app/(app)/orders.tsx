@@ -16,7 +16,7 @@ import {
   ActionSheetIOS,
 } from 'react-native';
 import { Stack } from 'expo-router';
-import { FontAwesome, FontAwesome5 } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import api from '../../api/api';
 
 const { width } = Dimensions.get('window');
@@ -218,42 +218,47 @@ export default function OrdersScreen() {
 
   const renderOrderItem = ({ item }: { item: Order }) => (
     <TouchableOpacity 
-      style={[
-        styles.itemRow, 
-        { backgroundColor: THEME.card }
-      ]}
+      style={[styles.itemRow, { backgroundColor: THEME.card }]}
       onPress={() => fetchOrderDetail(item.idExterno)}
       activeOpacity={0.6}
+      hitSlop={{ top: 5, bottom: 5, left: 0, right: 0 }}
     >
-      <View style={styles.itemMainRow}>
-         <View style={{ flex: 1, marginRight: 12 }}>
-            <Text style={[styles.itemOrderLabel, { color: THEME.secondary }]}>Pedido {item.idExterno}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={[styles.statusIconCircle, { backgroundColor: getStatusColor(item.status) + '15' }]}>
+          <Ionicons 
+            name={item.status.toLowerCase().includes('cancel') ? 'close' : 'cart'} 
+            size={22} 
+            color={getStatusColor(item.status)} 
+          />
+        </View>
+        
+        <View style={{ flex: 1 }}>
+          <View style={{ marginBottom: 2 }}>
             <Text style={[styles.itemCustomerName, { color: THEME.text }]} numberOfLines={1}>
-               {item.cliente?.fantasia}
+              {item.cliente?.fantasia}
             </Text>
-            <View style={styles.itemMetaRow}>
-               <FontAwesome name="map-marker" size={10} color={THEME.secondary} style={{ marginRight: 4 }} />
-               <Text style={[styles.itemMetaText, { color: THEME.secondary }]}>{item.cliente.localidade || 'Local não informado'}</Text>
-            </View>
-         </View>
-         <View style={styles.itemRightSide}>
-            <View style={[styles.statusTag, { backgroundColor: getStatusColor(item.status) + '15' }]}>
-               <Text style={[styles.statusTagText, { color: getStatusColor(item.status) }]}>
+          </View>
+          
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={[styles.itemPriceID, { color: THEME.secondary, flex: 1, marginRight: 8 }]} numberOfLines={1}>
+              {formatDate(item.cadastradoEm)} • Pedido {item.idExterno} • {formatCurrency(item.valorTotal)}
+            </Text>
+            <Ionicons name="chevron-forward" size={14} color={THEME.border} />
+          </View>
+          
+          <View style={styles.itemMetaRow}>
+            <View style={[styles.statusTagMini, { backgroundColor: getStatusColor(item.status) + '15' }]}>
+               <View style={[styles.statusDot, { backgroundColor: getStatusColor(item.status) }]} />
+               <Text style={[styles.statusTagTextMini, { color: getStatusColor(item.status) }]}>
                  {item.status.toUpperCase()}
                </Text>
             </View>
-            <Text style={[styles.itemValueText, { color: THEME.text }]}>{formatCurrency(item.valorTotal)}</Text>
-         </View>
-      </View>
-      
-      <View style={styles.itemFooterRow}>
-         <View style={styles.dateBadge}>
-            <FontAwesome name="calendar" size={10} color={THEME.secondary} style={{ marginRight: 6 }} />
-            <Text style={[styles.dateText, { color: THEME.secondary }]}>{formatDate(item.cadastradoEm)}</Text>
-         </View>
-         <View style={styles.chevronBox}>
-            <FontAwesome name="chevron-right" size={12} color={THEME.border} />
-         </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 12 }}>
+              <Ionicons name="location-outline" size={12} color={THEME.secondary} style={{ marginRight: 4 }} />
+              <Text style={[styles.itemMetaText, { color: THEME.secondary }]}>{item.cliente.localidade || 'Local'}</Text>
+            </View>
+          </View>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -285,8 +290,13 @@ export default function OrdersScreen() {
       <Modal visible={detailVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setDetailVisible(false)}>
         <View style={[styles.modalBase, { backgroundColor: THEME.bg }]}>
           <View style={[styles.modalHeader, { borderBottomColor: THEME.border }]}>
-            <TouchableOpacity onPress={() => setDetailVisible(false)}>
-              <Text style={{ color: THEME.accent, fontSize: 17, fontWeight: '500' }}>Fechar</Text>
+            <TouchableOpacity 
+              onPress={() => setDetailVisible(false)}
+              style={{ flexDirection: 'row', alignItems: 'center' }}
+              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+            >
+              <Ionicons name="chevron-back" size={24} color={THEME.accent} />
+              <Text style={{ color: THEME.accent, fontSize: 17, marginLeft: 5 }}>Voltar</Text>
             </TouchableOpacity>
             <Text style={[styles.headerTitle, { color: THEME.text }]}>Detalhes</Text>
             <View style={{ width: 60 }} />
@@ -310,9 +320,10 @@ export default function OrdersScreen() {
                       style={styles.actionBtn} 
                       disabled={!selectedOrderDetail.cliente?.telefone}
                       onPress={() => Linking.openURL(`tel:${selectedOrderDetail.cliente?.telefone}`)}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
                       <View style={[styles.actionIcon, { backgroundColor: selectedOrderDetail.cliente?.telefone ? THEME.accent : THEME.border }]}>
-                        <FontAwesome name="phone" size={18} color="#FFF" />
+                        <Ionicons name="call" size={20} color="#FFF" />
                       </View>
                       <Text style={[styles.actionLabel, !selectedOrderDetail.cliente?.telefone && { color: THEME.border }]}>Ligar</Text>
                     </TouchableOpacity>
@@ -321,15 +332,20 @@ export default function OrdersScreen() {
                       style={styles.actionBtn} 
                       disabled={!selectedOrderDetail.cliente?.telefone}
                       onPress={() => Linking.openURL(`whatsapp://send?phone=55${selectedOrderDetail.cliente?.telefone?.replace(/\D/g,'')}`)}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
                       <View style={[styles.actionIcon, { backgroundColor: selectedOrderDetail.cliente?.telefone ? '#25D366' : THEME.border }]}>
-                        <FontAwesome name="whatsapp" size={18} color="#FFF" />
+                        <Ionicons name="logo-whatsapp" size={20} color="#FFF" />
                       </View>
                       <Text style={[styles.actionLabel, !selectedOrderDetail.cliente?.telefone && { color: THEME.border }]}>WhatsApp</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.actionBtn} onPress={() => handleMapPress(selectedOrderDetail.cliente)}>
-                      <View style={[styles.actionIcon, { backgroundColor: THEME.accent }]}><FontAwesome name="map-marker" size={18} color="#FFF" /></View>
+                    <TouchableOpacity 
+                      style={styles.actionBtn} 
+                      onPress={() => handleMapPress(selectedOrderDetail.cliente)}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <View style={[styles.actionIcon, { backgroundColor: THEME.accent }]}><Ionicons name="map" size={18} color="#FFF" /></View>
                       <Text style={styles.actionLabel}>Mapa</Text>
                     </TouchableOpacity>
                   </View>
@@ -361,8 +377,8 @@ export default function OrdersScreen() {
                        {item.cores.map((cor, cIdx) => (
                          <View key={cor.corNome + cIdx} style={styles.gradeSection}>
                             <View style={styles.gradeHeader}>
-                               <FontAwesome name="tag" size={10} color={THEME.secondary} style={{ marginRight: 6 }} />
-                               <Text style={[styles.gradeHeaderText, { color: THEME.secondary }]}>{cor.corNome}</Text>
+                             <Ionicons name="bookmark-outline" size={10} color={THEME.secondary} style={{ marginRight: 6 }} />
+                             <Text style={[styles.gradeHeaderText, { color: THEME.secondary }]}>{cor.corNome}</Text>
                             </View>
                             <View style={styles.sizeMatrix}>
                               {cor.tamanhos.map((tam, tIdx) => (
@@ -395,27 +411,30 @@ const DetailRow = ({ label, value, theme, last }: any) => (
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  listContent: { paddingHorizontal: 0, paddingBottom: 100 },
+  listContent: { 
+    paddingHorizontal: 16, 
+    paddingTop: 20,
+    paddingBottom: 100 
+  },
   itemRow: { 
     padding: 16,
     paddingTop: 12,
     paddingBottom: 12,
+    borderRadius: 12,
+    marginBottom: 10,
   },
-  itemSeparator: { height: 0.5, marginLeft: 16, opacity: 0.5 },
+  itemSeparator: { height: 0, opacity: 0 },
   itemMainRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   itemOrderLabel: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4, opacity: 0.6 },
-  itemCustomerName: { fontSize: 17, fontWeight: '700', letterSpacing: -0.2 },
-  itemMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  itemMetaText: { fontSize: 13, fontWeight: '400' },
-  itemRightSide: { alignItems: 'flex-end' },
-  statusTag: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginBottom: 8 },
-  statusTagText: { fontSize: 10, fontWeight: '900' },
-  itemValueText: { fontSize: 17, fontWeight: '700' },
-  itemDivider: { height: 1, marginVertical: 12, opacity: 0.3 },
-  itemFooterRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  dateBadge: { flexDirection: 'row', alignItems: 'center' },
-  dateText: { fontSize: 12, fontWeight: '500' },
-  chevronBox: { flexDirection: 'row', alignItems: 'center' },
+  itemCustomerName: { fontSize: 16, fontWeight: '700', letterSpacing: -0.3 },
+  itemPriceID: { fontSize: 13, fontWeight: '400' },
+  itemMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+  itemMetaText: { fontSize: 12, fontWeight: '400' },
+  statusIconCircle: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
+  statusTagMini: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 10 },
+  statusDot: { width: 6, height: 6, borderRadius: 3, marginRight: 5 },
+  statusTagTextMini: { fontSize: 10, fontWeight: '800' },
+  dateText: { fontSize: 12, fontWeight: '400' },
 
   modalBase: { flex: 1 },
   modalHeader: { height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, borderBottomWidth: 0.5 },

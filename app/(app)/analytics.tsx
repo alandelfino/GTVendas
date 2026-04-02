@@ -194,7 +194,7 @@ export default function AnalyticsScreen() {
       ) : (
         <ScrollView 
           style={styles.container}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingTop: (insets.top > 0 ? insets.top + 100 : 140) }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={THEME.accent} />}
         >
 
@@ -205,7 +205,7 @@ export default function AnalyticsScreen() {
                 style={[styles.colChip, !selectedColecao && { backgroundColor: THEME.accent }]}
                 onPress={() => setSelectedColecao(null)}
               >
-                <Text style={[styles.colChipText, !selectedColecao && { color: '#FFF' }]}>Todas</Text>
+                <Text style={[styles.colChipText, { color: '#FFF' }]}>Todas</Text>
               </TouchableOpacity>
               {(colecoes && Array.isArray(colecoes) ? colecoes : []).map(c => (
                 <TouchableOpacity 
@@ -213,7 +213,7 @@ export default function AnalyticsScreen() {
                   style={[styles.colChip, selectedColecao === c.idExterno && { backgroundColor: THEME.accent }]}
                   onPress={() => setSelectedColecao(c.idExterno)}
                 >
-                  <Text style={[styles.colChipText, selectedColecao === c.idExterno && { color: '#FFF' }]}>{c.nome}</Text>
+                  <Text style={[styles.colChipText, { color: '#FFF' }]}>{c.nome}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -252,7 +252,7 @@ export default function AnalyticsScreen() {
                {(['day', 'week', 'month'] as const).map(t => (
                  <TouchableOpacity 
                   key={t}
-                  style={[styles.segmentBtn, groupBy === t && styles.segmentBtnActive]}
+                  style={[styles.segmentBtn, groupBy === t && (isDark ? { backgroundColor: '#636366' } : styles.segmentBtnActive)]}
                   onPress={() => setGroupBy(t)}
                  >
                    <Text style={[styles.segmentTextSmall, { color: groupBy === t ? THEME.text : THEME.secondary }]}>
@@ -288,11 +288,11 @@ export default function AnalyticsScreen() {
 
           <View style={styles.sectionHeaderRow}>
             <SectionHeader title="Top Produtos" />
-            <View style={styles.toggleRow}>
-              <TouchableOpacity onPress={() => setProdSort('valor')} style={[styles.toggleBtn, prodSort === 'valor' && styles.toggleBtnActive]}>
+            <View style={[styles.toggleRow, { backgroundColor: isDark ? '#1C1C1E' : 'rgba(118, 118, 128, 0.12)' }]}>
+              <TouchableOpacity onPress={() => setProdSort('valor')} style={[styles.toggleBtn, prodSort === 'valor' && (isDark ? { backgroundColor: '#636366' } : styles.toggleBtnActive)]}>
                 <Text style={[styles.toggleText, { color: prodSort === 'valor' ? THEME.text : THEME.secondary }]}>R$</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setProdSort('quantidade')} style={[styles.toggleBtn, prodSort === 'quantidade' && styles.toggleBtnActive]}>
+              <TouchableOpacity onPress={() => setProdSort('quantidade')} style={[styles.toggleBtn, prodSort === 'quantidade' && (isDark ? { backgroundColor: '#636366' } : styles.toggleBtnActive)]}>
                 <Text style={[styles.toggleText, { color: prodSort === 'quantidade' ? THEME.text : THEME.secondary }]}>un.</Text>
               </TouchableOpacity>
             </View>
@@ -315,11 +315,11 @@ export default function AnalyticsScreen() {
 
           <View style={styles.sectionHeaderRow}>
             <SectionHeader title="Top Categorias" />
-            <View style={styles.toggleRow}>
-              <TouchableOpacity onPress={() => setCatSort('valor')} style={[styles.toggleBtn, catSort === 'valor' && styles.toggleBtnActive]}>
+            <View style={[styles.toggleRow, { backgroundColor: isDark ? '#1C1C1E' : 'rgba(118, 118, 128, 0.12)' }]}>
+              <TouchableOpacity onPress={() => setCatSort('valor')} style={[styles.toggleBtn, catSort === 'valor' && (isDark ? { backgroundColor: '#636366' } : styles.toggleBtnActive)]}>
                 <Text style={[styles.toggleText, { color: catSort === 'valor' ? THEME.text : THEME.secondary }]}>R$</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setCatSort('quantidade')} style={[styles.toggleBtn, catSort === 'quantidade' && styles.toggleBtnActive]}>
+              <TouchableOpacity onPress={() => setCatSort('quantidade')} style={[styles.toggleBtn, catSort === 'quantidade' && (isDark ? { backgroundColor: '#636366' } : styles.toggleBtnActive)]}>
                 <Text style={[styles.toggleText, { color: catSort === 'quantidade' ? THEME.text : THEME.secondary }]}>un.</Text>
               </TouchableOpacity>
             </View>
@@ -341,11 +341,11 @@ export default function AnalyticsScreen() {
 
           <View style={styles.sectionHeaderRow}>
             <SectionHeader title="Top Clientes" />
-            <View style={styles.toggleRow}>
-              <TouchableOpacity onPress={() => setCliSort('valor')} style={[styles.toggleBtn, cliSort === 'valor' && styles.toggleBtnActive]}>
+            <View style={[styles.toggleRow, { backgroundColor: isDark ? '#1C1C1E' : 'rgba(118, 118, 128, 0.12)' }]}>
+              <TouchableOpacity onPress={() => setCliSort('valor')} style={[styles.toggleBtn, cliSort === 'valor' && (isDark ? { backgroundColor: '#636366' } : styles.toggleBtnActive)]}>
                 <Text style={[styles.toggleText, { color: cliSort === 'valor' ? THEME.text : THEME.secondary }]}>R$</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setCliSort('quantidade')} style={[styles.toggleBtn, cliSort === 'quantidade' && styles.toggleBtnActive]}>
+              <TouchableOpacity onPress={() => setCliSort('quantidade')} style={[styles.toggleBtn, cliSort === 'quantidade' && (isDark ? { backgroundColor: '#636366' } : styles.toggleBtnActive)]}>
                 <Text style={[styles.toggleText, { color: cliSort === 'quantidade' ? THEME.text : THEME.secondary }]}>un.</Text>
               </TouchableOpacity>
             </View>
@@ -367,11 +367,11 @@ export default function AnalyticsScreen() {
 
           <View style={styles.sectionHeaderRow}>
             <SectionHeader title="Top Cidades" />
-            <View style={styles.toggleRow}>
-              <TouchableOpacity onPress={() => setCitySort('valor')} style={[styles.toggleBtn, citySort === 'valor' && styles.toggleBtnActive]}>
+            <View style={[styles.toggleRow, { backgroundColor: isDark ? '#1C1C1E' : 'rgba(118, 118, 128, 0.12)' }]}>
+              <TouchableOpacity onPress={() => setCitySort('valor')} style={[styles.toggleBtn, citySort === 'valor' && (isDark ? { backgroundColor: '#636366' } : styles.toggleBtnActive)]}>
                 <Text style={[styles.toggleText, { color: citySort === 'valor' ? THEME.text : THEME.secondary }]}>R$</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setCitySort('quantidade')} style={[styles.toggleBtn, citySort === 'quantidade' && styles.toggleBtnActive]}>
+              <TouchableOpacity onPress={() => setCitySort('quantidade')} style={[styles.toggleBtn, citySort === 'quantidade' && (isDark ? { backgroundColor: '#636366' } : styles.toggleBtnActive)]}>
                 <Text style={[styles.toggleText, { color: citySort === 'quantidade' ? THEME.text : THEME.secondary }]}>un.</Text>
               </TouchableOpacity>
             </View>
@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { 
     paddingHorizontal: 16, 
-    paddingTop: 20, 
+    paddingTop: 140, 
     paddingBottom: 100 
   },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
@@ -415,11 +415,11 @@ const styles = StyleSheet.create({
   filterArea: { marginBottom: 8 },
   colScrollContent: { paddingVertical: 8 },
   colChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 15,
-    backgroundColor: 'rgba(128,128,128,0.1)',
-    marginRight: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    marginRight: 8,
   },
   colChipText: { fontSize: 13, fontWeight: '600' },
   segmentedControl: {
