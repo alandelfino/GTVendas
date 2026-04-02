@@ -1,6 +1,6 @@
 import { FontAwesome, Ionicons } from '@expo/vector-icons';
 import { RecordingOptions, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus, useAudioRecorder } from 'expo-audio';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Stack, useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import React, { useEffect, useRef, useState } from 'react';
@@ -99,17 +99,17 @@ export default function ChatScreen() {
   // Audio Configuration (Global Engine)
   const recorder = useAudioRecorder({
     extension: '.m4a',
-    sampleRate: 44100,
-    numberOfChannels: 2,
+    sampleRate: 16000,
+    numberOfChannels: 1,
     bitRate: 128000,
     ios: {
       extension: '.m4a',
-      sampleRate: 44100,
-      audioQuality: 1, 
+      sampleRate: 16000,
+      audioQuality: 1, // HIGH
     },
     android: {
       extension: '.m4a',
-      sampleRate: 44100,
+      sampleRate: 16000,
       outputFormat: 'mpeg4',
       audioEncoder: 'aac',
     },
@@ -451,6 +451,8 @@ export default function ChatScreen() {
   const stopRecording = async () => {
     if (!recorder.isRecording) return;
     try {
+      const isShort = recordingTime < 2;
+      
       setIsRecording(false);
       if (recordTimerRef.current) clearInterval(recordTimerRef.current);
       pulseAnim.setValue(1);
@@ -461,9 +463,14 @@ export default function ChatScreen() {
         useNativeDriver: true,
       }).start();
 
-      recorder.stop();
+      await recorder.stop();
       const uri = recorder.uri;
-      if (uri) transcribeAudio(uri);
+      
+      if (uri && !isShort) {
+        transcribeAudio(uri);
+      } else if (isShort) {
+        console.log('--- [CHAT DEBUG] Gravação cancelada por ser muito curta (< 2s) ---');
+      }
     } catch (e) {
       console.error('Stop recording error:', e);
     }
@@ -501,7 +508,7 @@ export default function ChatScreen() {
           httpMethod: 'POST',
           uploadType: 0, 
           headers: {
-            'Content-Type': 'application/octet-stream',
+            'Content-Type': 'audio/m4a',
             'Authorization': `Bearer ${authToken}`
           },
         });
@@ -523,7 +530,6 @@ export default function ChatScreen() {
         const body = JSON.parse(response.body);
         if (body.text) {
           setVoiceMode(true);
-          // Atualiza o balão temporário com o texto real
           setMessages(prev => prev.map(m => 
             m.id === tempId ? { ...m, content: body.text } : m
           ));
@@ -533,6 +539,7 @@ export default function ChatScreen() {
           setStreamPhase('idle');
         }
       } else {
+        console.error('--- [TRANSCRIBE DEBUG] Servidor Erro Body:', response.body);
         throw new Error(`Servidor retornou status ${response.status}`);
       }
     } catch (error: any) {
