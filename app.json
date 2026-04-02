@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "gtvendas",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
@@ -23,6 +22,7 @@
       }
     },
     "android": {
+      "package": "com.alandelfino.gtvendas",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -34,7 +34,6 @@
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.INTERNET"
       ],
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -45,7 +44,9 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-local-authentication"
+      "expo-local-authentication",
+      "expo-audio",
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true

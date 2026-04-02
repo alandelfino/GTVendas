@@ -11,6 +11,7 @@ export default function AppLayout() {
       headerShown: false,
       contentStyle: { backgroundColor: isDark ? '#000000' : '#F2F2F7' },
       animation: 'slide_from_right',
+      headerTitleAlign: 'center',
     }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="chat" options={{ headerShown: true, title: 'Assistente IA' }} />

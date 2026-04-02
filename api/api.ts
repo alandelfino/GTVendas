@@ -32,20 +32,27 @@ api.interceptors.response.use((response: AxiosResponse) => response, async (erro
     try {
       const refreshToken = await SecureStore.getItemAsync('refreshToken');
       if (refreshToken) {
-        const response = await axios.post(`${API_BASE_URL}/api/mobile/refresh`, { refreshToken });
-        const { accessToken } = response.data;
+        // Use a dedicated axios instance to avoid our own interceptor headers context
+        const refreshRes = await axios.post(`${API_BASE_URL.replace(/\/$/, '')}/api/mobile/refresh`, { refreshToken });
         
-        await SecureStore.setItemAsync('accessToken', accessToken);
-        
-        if (originalRequest.headers) {
+        if (refreshRes.data.accessToken) {
+          const { accessToken, refreshToken: newRefreshToken } = refreshRes.data;
+          
+          await SecureStore.setItemAsync('accessToken', accessToken);
+          if (newRefreshToken) {
+            await SecureStore.setItemAsync('refreshToken', newRefreshToken);
+          }
+          
           originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+          return api(originalRequest);
         }
-        return api(originalRequest);
       }
-    } catch (refreshError) {
-      // Se falhar o refresh, removemos os tokens (logout) e redirecionamos
+    } catch (refreshError: any) {
+      console.error('[API REFRESH ERROR]', refreshError?.response?.status || refreshError.message);
+      // Se falhar o refresh (ex: token inválido ou expirado), deslogamos
       await SecureStore.deleteItemAsync('accessToken');
       await SecureStore.deleteItemAsync('refreshToken');
+      await SecureStore.deleteItemAsync('user');
       router.replace('/login');
     }
   } else if (error.response?.status === 401) {

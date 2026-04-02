@@ -182,17 +182,13 @@ export default function OrdersScreen() {
     const addr = customer.endereco;
     const address = `${addr.logradouro}, ${addr.numero}, ${addr.cidade}, ${addr.uf}`;
     const encodedAddress = encodeURIComponent(address);
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        { options: ['Cancelar', 'Apple Maps', 'Google Maps'], cancelButtonIndex: 0, title: 'Abrir Mapa' },
-        (buttonIndex) => {
-          if (buttonIndex === 1) Linking.openURL(`maps://?q=${encodedAddress}`);
-          else if (buttonIndex === 2) Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`);
-        }
-      );
-    } else {
-       Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`);
-    }
+    ActionSheetIOS.showActionSheetWithOptions(
+      { options: ['Cancelar', 'Apple Maps', 'Google Maps'], cancelButtonIndex: 0, title: 'Abrir Mapa' },
+      (buttonIndex) => {
+        if (buttonIndex === 1) Linking.openURL(`maps://?q=${encodedAddress}`);
+        else if (buttonIndex === 2) Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`);
+      }
+    );
   };
 
   const getStatusColor = (status: string | null | undefined) => {
@@ -222,7 +218,10 @@ export default function OrdersScreen() {
 
   const renderOrderItem = ({ item }: { item: Order }) => (
     <TouchableOpacity 
-      style={[styles.itemRow, { backgroundColor: THEME.card }]}
+      style={[
+        styles.itemRow, 
+        { backgroundColor: THEME.card }
+      ]}
       onPress={() => fetchOrderDetail(item.idExterno)}
       activeOpacity={0.6}
     >

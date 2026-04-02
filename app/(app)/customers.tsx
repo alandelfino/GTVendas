@@ -8,7 +8,6 @@ import {
     FlatList,
     Linking,
     Modal,
-    Platform,
     RefreshControl,
     ScrollView,
     StyleSheet,
@@ -191,33 +190,28 @@ export default function CustomersScreen() {
   const handleMapPress = (customer: Customer) => {
     const address = `${customer.endereco.logradouro}, ${customer.endereco.numero}, ${customer.endereco.cidade}, ${customer.endereco.uf}`;
     const encodedAddress = encodeURIComponent(address);
-    
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: ['Cancelar', 'Apple Maps', 'Google Maps'],
-          cancelButtonIndex: 0,
-          title: 'Abrir Mapa',
-          message: 'Como deseja seguir a rota?'
-        },
-        (buttonIndex) => {
-          if (buttonIndex === 1) {
-            Linking.openURL(`maps://?q=${encodedAddress}`);
-          } else if (buttonIndex === 2) {
-            const googleUrl = `comgooglemaps://?q=${encodedAddress}`;
-            Linking.canOpenURL(googleUrl).then(supported => {
-              if (supported) {
-                Linking.openURL(googleUrl);
-              } else {
-                Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`);
-              }
-            });
-          }
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        options: ['Cancelar', 'Apple Maps', 'Google Maps'],
+        cancelButtonIndex: 0,
+        title: 'Abrir Mapa',
+        message: 'Como deseja seguir a rota?'
+      },
+      (buttonIndex) => {
+        if (buttonIndex === 1) {
+          Linking.openURL(`maps://?q=${encodedAddress}`);
+        } else if (buttonIndex === 2) {
+          const googleUrl = `comgooglemaps://?q=${encodedAddress}`;
+          Linking.canOpenURL(googleUrl).then(supported => {
+            if (supported) {
+              Linking.openURL(googleUrl);
+            } else {
+              Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`);
+            }
+          });
         }
-      );
-    } else {
-       Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`);
-    }
+      }
+    );
   };
 
   const getStatusColor = (status: string | null | undefined) => {
@@ -260,7 +254,10 @@ export default function CustomersScreen() {
 
   const renderCustomerItem = ({ item }: { item: Customer }) => (
     <TouchableOpacity 
-      style={[styles.itemContainer, { backgroundColor: THEME.card }]}
+      style={[
+        styles.itemContainer, 
+        { backgroundColor: THEME.card }
+      ]}
       onPress={() => openDetail(item)}
       activeOpacity={0.7}
     >

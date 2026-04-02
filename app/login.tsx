@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   useColorScheme,
   StatusBar,
+  Alert,
   View,
   Text,
   Dimensions
@@ -58,9 +59,9 @@ export default function LoginScreen() {
       setBiometricSupported(true);
       setAuthType(types);
       
-      // Auto-trigger if we have saved credentials
-      const savedUser = await SecureStore.getItemAsync('saved_id');
-      if (savedUser) {
+      // Auto-trigger ONLY if user explicitly enabled it previously
+      const isEnabled = await SecureStore.getItemAsync('faceid_enabled');
+      if (isEnabled === 'true') {
         handleBiometricAuth();
       }
     }
@@ -71,7 +72,7 @@ export default function LoginScreen() {
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: 'Acesse o painel do Grupo Titanium',
         fallbackLabel: 'Usar senha',
-        disableDeviceFallback: false,
+        disableDeviceFallback: true, // STRICT: FaceID only, no passcode fallback
       });
 
       if (result.success) {
@@ -80,13 +81,18 @@ export default function LoginScreen() {
         
         if (savedUser && savedPass) {
           setIsSubmitting(true);
-          await signIn(savedUser, savedPass);
+          try {
+            await signIn(savedUser, savedPass);
+          } catch (e: any) {
+            setError(e.message || 'Falha na re-autenticação biométrica');
+          }
         } else {
           setError('Nenhuma biometria vinculada ainda. Logue manualmente uma vez.');
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Biometric error:', err);
+      setError('Falha ao utilizar biometria');
     } finally {
       setIsSubmitting(false);
     }
@@ -103,9 +109,31 @@ export default function LoginScreen() {
 
     try {
       await signIn(username, password);
-      // After success, link biometrics
-      await SecureStore.setItemAsync('saved_id', username);
-      await SecureStore.setItemAsync('saved_pass', password);
+      
+      // After success, check if FaceID should be offered
+      const faceIdStatus = await SecureStore.getItemAsync('faceid_enabled');
+      
+      if (biometricSupported && faceIdStatus !== 'true' && faceIdStatus !== 'declined') {
+        Alert.alert(
+          'Acesso Rápido',
+          'Deseja utilizar o FaceID para seus próximos acessos ao Grupo Titanium?',
+          [
+            { 
+              text: 'Agora Não', 
+              style: 'cancel',
+              onPress: async () => await SecureStore.setItemAsync('faceid_enabled', 'declined') 
+            },
+            { 
+              text: 'Ativar FaceID', 
+              onPress: async () => {
+                await SecureStore.setItemAsync('faceid_enabled', 'true');
+                await SecureStore.setItemAsync('saved_id', username);
+                await SecureStore.setItemAsync('saved_pass', password);
+              }
+            }
+          ]
+        );
+      }
     } catch (err: any) {
       setError(err.message || 'Credenciais inválidas');
     } finally {
@@ -191,18 +219,6 @@ export default function LoginScreen() {
               )}
             </Pressable>
 
-            {biometricSupported && (
-              <TouchableOpacity 
-                style={[styles.biometricButton, { borderColor: THEME.border }]}
-                onPress={handleBiometricAuth}
-              >
-                <FontAwesome 
-                  name={authType.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION) ? "user-circle-o" : "dot-circle-o"} 
-                  size={24} 
-                  color={THEME.primary} 
-                />
-              </TouchableOpacity>
-            )}
           </View>
 
           <TouchableOpacity style={styles.forgotButton}>

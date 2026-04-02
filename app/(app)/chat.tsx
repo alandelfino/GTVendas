@@ -1,26 +1,29 @@
 import { FontAwesome } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
-import * as FileSystem from 'expo-file-system/legacy';
+import { RecordingOptions, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus, useAudioRecorder } from 'expo-audio';
+import * as FileSystem from 'expo-file-system';
 import { Stack, useRouter } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Animated,
-  Dimensions,
-  Easing,
-  FlatList,
-  KeyboardAvoidingView,
-  Linking,
-  Platform,
-  Pressable,
-  Share,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  useColorScheme,
-  View
+    ActivityIndicator,
+    Animated,
+    Dimensions,
+    Easing,
+    FlatList,
+    ImageBackground,
+    KeyboardAvoidingView,
+    Linking,
+    Pressable,
+    Share,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    useColorScheme,
+    View
 } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import Markdown from 'react-native-markdown-display';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
@@ -83,16 +86,39 @@ export default function ChatScreen() {
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
+  const [loading, setLoading] = useState(false);
   const [streamPhase, setStreamPhase] = useState<'idle' | 'waiting' | 'streaming'>('idle');
   const [streamingText, setStreamingText] = useState('');
   const [pendingTool, setPendingTool] = useState<string | null>(null);
   
-  // Audio State
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  // Audio Configuration (Global Engine)
+  const recorder = useAudioRecorder({
+    extension: '.m4a',
+    sampleRate: 44100,
+    numberOfChannels: 2,
+    bitRate: 128000,
+    ios: {
+      extension: '.m4a',
+      sampleRate: 44100,
+      audioQuality: 1, 
+    },
+    android: {
+      extension: '.m4a',
+      sampleRate: 44100,
+      outputFormat: 'mpeg4',
+      audioEncoder: 'aac',
+    },
+    web: {}
+  } as RecordingOptions);
+
+  const globalPlayer = useAudioPlayer();
+  const playerStatus = useAudioPlayerStatus(globalPlayer);
+  const isFocused = useIsFocused();
+  const [activePlayingId, setActivePlayingId] = useState<number | string | null>(null);
+  const [isAudioLoading, setIsAudioLoading] = useState(false);
+
   const [isRecording, setIsRecording] = useState(false);
   const [voiceMode, setVoiceMode] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [recordingTime, setRecordingTime] = useState(0);
   const recordTimerRef = useRef<NodeJS.Timeout | null>(null);
   const slideAnim = useRef(new Animated.Value(0)).current; 
@@ -103,11 +129,10 @@ export default function ChatScreen() {
 
   const configureAudioMode = async (forRecording: boolean) => {
     try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: forRecording,
-        playsInSilentModeIOS: true,
-        playThroughEarpieceAndroid: false,
-        staysActiveInBackground: true,
+      await setAudioModeAsync({
+        allowsRecording: forRecording,
+        playsInSilentMode: true,
+        shouldPlayInBackground: true,
       });
     } catch (e) {
       console.error('Error configuring audio mode:', e);
@@ -117,9 +142,18 @@ export default function ChatScreen() {
   useEffect(() => {
     loadSessions();
     configureAudioMode(false);
+
     return () => {
-      if (sound) sound.unloadAsync();
-      if (recording) recording.stopAndUnloadAsync();
+      // Emergency clean up only if we still have references
+      try {
+        if (globalPlayer && globalPlayer.playing) {
+          globalPlayer.pause();
+        }
+        if (recorder) {
+          recorder.stop();
+        }
+      } catch (e) {}
+      
       if (recordTimerRef.current) clearInterval(recordTimerRef.current);
     };
   }, []);
@@ -132,17 +166,38 @@ export default function ChatScreen() {
     }
   }, [activeSessionId]);
 
+  // Scroll Automático Inteligente
+  useEffect(() => {
+    if (messages.length > 0) {
+      // Scroll imediato para listas já carregadas
+      flatListRef.current?.scrollToEnd({ animated: false });
+      
+      // Ajuste de precisão para garantir que o layout final foi processado (especialmente para Android)
+      const timer = setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [messages.length, activeSessionId, streamPhase === 'streaming']);
+
   const loadSessions = async () => {
+    setLoading(true);
     try {
+      console.log('--- [CHAT DEBUG] Carregando Sessões ---');
       const response = await api.get('/api/rep/chat/sessions');
+      console.log(`--- [CHAT DEBUG] Sessões Recebidas: ${response.data.length} ---`);
       setSessions(response.data);
       if (response.data.length > 0 && !activeSessionId) {
+        console.log(`--- [CHAT DEBUG] Ativando Sessão Inicial: ${response.data[0].id} ---`);
         setActiveSessionId(response.data[0].id);
       } else if (response.data.length === 0) {
+        console.log('--- [CHAT DEBUG] Nenhuma sessão encontrada, criando nova ---');
         createNewSession();
       }
     } catch (error) {
-      console.error('Error loading sessions:', error);
+      console.error('--- [CHAT DEBUG ERROR] Erro ao carregar sessões:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -165,7 +220,9 @@ export default function ChatScreen() {
   };
 
   const loadMessages = async (sessionId: number) => {
+    setLoading(true);
     try {
+      console.log(`--- [CHAT DEBUG] Carregando Mensagens para Sessão: ${sessionId} ---`);
       const response = await api.get(`/api/rep/chat/sessions/${sessionId}/messages`);
       const formattedMessages = response.data.map((m: any) => ({
         ...m,
@@ -174,24 +231,29 @@ export default function ChatScreen() {
         content: m.content,
         isVoice: m.hasAudio || (m.role === 'assistant' && m.hasTts),
       }));
+      console.log(`--- [CHAT DEBUG] Sincronizando Mensagens: ${formattedMessages.length} do Banco ---`);
       setMessages(formattedMessages);
       setTimeout(() => flatListRef.current?.scrollToEnd(), 200);
     } catch (error) {
-      console.error('Error loading messages:', error);
+      console.error('--- [CHAT DEBUG ERROR] Erro ao carregar mensagens:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const sendMessage = async (textOverride?: string, fromVoice: boolean = false) => {
+  const sendMessage = async (textOverride?: string, fromVoice: boolean = false, voiceMessageId?: number) => {
     const textToSend = textOverride || inputText;
     if (!textToSend.trim() || !activeSessionId || streamPhase !== 'idle') return;
 
-    if (sound) {
-      try { await sound.stopAsync(); } catch (e) {}
+    if (globalPlayer && globalPlayer.playing) {
+      try {
+        globalPlayer.pause();
+      } catch (e) {}
     }
 
     if (!fromVoice) {
       const userMessage: Message = {
-        id: Date.now(),
+        id: `user-${Date.now()}`,
         role: 'user',
         content: textToSend.trim(),
         isVoice: false
@@ -201,85 +263,126 @@ export default function ChatScreen() {
     
     setInputText('');
     setStreamPhase('waiting');
-    setStreamingText('');
     setPendingTool(null);
 
     let accumulatedText = '';
 
     try {
-      const tokenResponse = await api.post('/api/rep/chat/ws-token');
-      const wsToken = tokenResponse.data.token;
-
+      const token = await SecureStore.getItemAsync('accessToken');
       const baseUrl = api.defaults.baseURL || '';
-      const wsProtocol = baseUrl.startsWith('https') ? 'wss' : 'ws';
-      const wsHost = baseUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
-      const wsUrl = `${wsProtocol}://${wsHost}/ws?token=${wsToken}&sessionId=${activeSessionId}`;
-      
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
- 
-       ws.onopen = () => {
-         ws.send(JSON.stringify({ 
-           type: 'message',
-           content: textToSend,
-           sessionId: activeSessionId 
-         }));
-       };
- 
-       ws.onmessage = async (e) => {
-         const data = JSON.parse(e.data);
-         switch (data.type) {
-           case 'tool_call':
-             setPendingTool(data.tool || 'Consultando dados...');
-             break;
-           case 'chunk':
-             setStreamPhase('streaming');
-             setPendingTool(null);
-             accumulatedText += data.content; // Alinhado com a doc da API (content, não text)
-             setStreamingText(accumulatedText);
-             break;
-           case 'pdf':
-           case 'map_embed':
-           case 'html_widget':
-             setMessages(prev => [...prev, {
-               id: `asset-${Date.now()}`,
-               role: 'assistant',
-               content: '',
-               type: data.type,
-               data: data
-             }]);
-             break;
-           case 'done':
-             if (accumulatedText.trim()) {
-               setMessages(prev => [...prev, {
-                 id: `bot-${Date.now()}`,
-                 role: 'assistant',
-                 content: accumulatedText,
-                 isVoice: false
-               }]);
-             }
-             ws.close();
-             setStreamingText('');
-             setStreamPhase('idle');
-             accumulatedText = '';
-             
-             // Aguarda o backend persistir a mensagem antes de sincronizar o histórico
-             setTimeout(() => {
-               loadMessages(activeSessionId);
-               loadSessions();
-             }, 800);
-             break;
-           case 'error':
-             setStreamPhase('idle');
-             ws.close();
-             break;
-         }
-       };
+      const streamUrl = `${baseUrl.replace(/\/$/, '')}/api/mobile/chat/stream`;
 
-      ws.onclose = () => {
-        setStreamPhase('idle');
-        wsRef.current = null;
+      console.log('--- [SSE DEBUG] Iniciando via XHR ---');
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', streamUrl);
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+
+      let lastIndex = 0;
+
+      xhr.onreadystatechange = () => {
+        // Status 3 = LOADING (dados chegando), Status 4 = DONE
+        if (xhr.readyState === 3 || xhr.readyState === 4) {
+          const responseText = xhr.responseText;
+          const newChunk = responseText.substring(lastIndex);
+          lastIndex = responseText.length;
+
+          // Eventos SSE são separados por \n\n
+          const parts = newChunk.split('\n\n');
+          
+          for (const part of parts) {
+            const line = part.trim();
+            if (!line || line.startsWith(':')) continue;
+
+            if (line.startsWith('data: ')) {
+              const json = line.slice(6);
+              try {
+                const data = JSON.parse(json);
+                console.log(`--- [SSE DEBUG] Evento: ${data.type} ---`);
+
+                switch (data.type) {
+                  case 'tool_call':
+                    setPendingTool(data.tool);
+                    break;
+
+                  case 'chunk':
+                    setStreamPhase('streaming');
+                    setPendingTool(null);
+                    accumulatedText += data.text;
+                    
+                    setMessages(prev => {
+                      const newMsgs = [...prev];
+                      const lastMsg = newMsgs[newMsgs.length - 1];
+                      if (lastMsg && lastMsg.id === 'streaming-bot') {
+                        newMsgs[newMsgs.length - 1] = { ...lastMsg, content: accumulatedText };
+                        return newMsgs;
+                      } else {
+                        return [...newMsgs, {
+                          id: 'streaming-bot',
+                          role: 'assistant',
+                          content: accumulatedText,
+                          isVoice: false
+                        }];
+                      }
+                    });
+                    break;
+
+                  case 'pdf':
+                  case 'map_embed':
+                  case 'html_widget':
+                    setMessages(prev => [...prev.filter(m => m.id !== 'streaming-bot'), {
+                      id: `asset-${Date.now()}-${Math.random()}`,
+                      role: 'assistant',
+                      content: '',
+                      type: data.type,
+                      data: data
+                    }]);
+                    break;
+
+                  case 'done':
+                    console.log('--- [SSE DEBUG] DONE Recebido ---');
+                    setMessages(prev => {
+                      const newMsgs = [...prev];
+                      const streamIdx = newMsgs.findIndex(m => m.id === 'streaming-bot');
+                      if (streamIdx > -1) {
+                        newMsgs[streamIdx] = { 
+                          ...newMsgs[streamIdx], 
+                          id: data.messageId || `bot-${Date.now()}`,
+                          content: accumulatedText.trim() || newMsgs[streamIdx].content 
+                        };
+                        return newMsgs;
+                      }
+                      return newMsgs;
+                    });
+                    setStreamPhase('idle');
+                    setTimeout(() => loadSessions(), 500);
+                    break;
+
+                  case 'error':
+                    console.error('--- [SSE DEBUG ERROR] ---', data.message);
+                    setStreamPhase('idle');
+                    break;
+                }
+              } catch (e) {
+                // Fragmento JSON incompleto, esperar o próximo chunk
+              }
+            }
+          }
+        }
       };
+
+      xhr.onerror = (err) => {
+        console.error('XHR Error:', err);
+        setStreamPhase('idle');
+      };
+
+      xhr.send(JSON.stringify({ 
+        content: textToSend.trim(), 
+        sessionId: activeSessionId,
+        voiceMessageId: voiceMessageId 
+      }));
+
     } catch (error) {
       console.error('Error in sendMessage flow:', error);
       setStreamPhase('idle');
@@ -287,15 +390,15 @@ export default function ChatScreen() {
   };
 
   const startRecording = async () => {
-    if (recording) return; 
+    if (recorder.isRecording) return; 
     try {
-      await Audio.requestPermissionsAsync();
+      const permission = await requestRecordingPermissionsAsync();
+      if (!permission.granted) return;
+      
       await configureAudioMode(true);
-
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      setRecording(recording);
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      
       setIsRecording(true);
       setRecordingTime(0);
       
@@ -317,14 +420,14 @@ export default function ChatScreen() {
         setRecordingTime(prev => prev + 1);
       }, 1000) as any;
 
-      if (sound) await sound.stopAsync();
+      if (globalPlayer.playing) globalPlayer.pause();
     } catch (err) {
       console.error('Failed to start recording', err);
     }
   };
 
   const stopRecording = async () => {
-    if (!recording) return;
+    if (!recorder.isRecording) return;
     try {
       setIsRecording(false);
       if (recordTimerRef.current) clearInterval(recordTimerRef.current);
@@ -336,9 +439,8 @@ export default function ChatScreen() {
         useNativeDriver: true,
       }).start();
 
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-      setRecording(null);
+      recorder.stop();
+      const uri = recorder.uri;
       if (uri) transcribeAudio(uri);
     } catch (e) {
       console.error('Stop recording error:', e);
@@ -346,8 +448,18 @@ export default function ChatScreen() {
   };
 
   const transcribeAudio = async (uri: string) => {
+    // Adiciona o balão do usuário IMEDIATAMENTE com loader de transcrição
+    const tempId = `voice-temp-${Date.now()}`;
+    const initialVoiceMsg: Message = {
+      id: tempId,
+      role: 'user',
+      content: 'Transcrevendo áudio...',
+      isVoice: true,
+      audioUri: uri
+    };
+    setMessages(prev => [...prev, initialVoiceMsg]);
     setStreamPhase('waiting');
-    setPendingTool('Processando áudio...');
+    setPendingTool('whisper_stt'); // Marcador interno para saber que é transcrição
     
     try {
       const fileInfo = await FileSystem.getInfoAsync(uri);
@@ -356,8 +468,7 @@ export default function ChatScreen() {
         return;
       }
 
-      const __SecureStore = require('expo-secure-store');
-      let token = await __SecureStore.getItemAsync('accessToken');
+      let token = (await SecureStore.getItemAsync('accessToken')) || '';
       
       const baseUrl = api.defaults.baseURL || '';
       const uploadUrl = `${baseUrl.replace(/\/$/, '')}/api/rep/chat/transcribe`;
@@ -376,11 +487,11 @@ export default function ChatScreen() {
       let response = await performUpload(token);
 
       if (response.status === 401) {
-        const refreshToken = await __SecureStore.getItemAsync('refreshToken');
+        const refreshToken = await SecureStore.getItemAsync('refreshToken');
         if (refreshToken) {
           const refreshRes = await api.post(`${baseUrl.replace(/\/$/, '')}/api/mobile/refresh`, { refreshToken });
-          token = refreshRes.data.accessToken;
-          await __SecureStore.setItemAsync('accessToken', token);
+          token = refreshRes.data.accessToken || '';
+          await SecureStore.setItemAsync('accessToken', token);
           response = await performUpload(token);
         }
       }
@@ -389,16 +500,13 @@ export default function ChatScreen() {
         const body = JSON.parse(response.body);
         if (body.text) {
           setVoiceMode(true);
-          const userMessage: Message = {
-            id: Date.now(),
-            role: 'user',
-            content: body.text,
-            isVoice: true,
-            audioUri: uri
-          };
-          setMessages(prev => [...prev, userMessage]);
-          sendMessage(body.text, true); 
+          // Atualiza o balão temporário com o texto real
+          setMessages(prev => prev.map(m => 
+            m.id === tempId ? { ...m, content: body.text } : m
+          ));
+          sendMessage(body.text, true, body.messageId); 
         } else {
+          setMessages(prev => prev.filter(m => m.id !== tempId));
           setStreamPhase('idle');
         }
       } else {
@@ -417,98 +525,104 @@ export default function ChatScreen() {
 
   const getToolLabel = (tool: string) => {
     const labels: any = {
-      get_resumo_vendas: 'Consultando resumo de vendas...',
-      get_top_clientes: 'Buscando melhores clientes...',
+      pesquisar_clientes: 'Buscando clientes...',
+      get_resumo_vendas: 'Analisando vendas...',
+      get_clientes_sem_pedido: 'Verificando carteira...',
+      get_metas_rep: 'Consultando metas...',
+      get_pedidos_rep: 'Carregando pedidos...',
+      plan_rota_visitas: 'Planejando rota no Maps...',
       gerar_relatorio_pdf: 'Gerando relatório PDF...',
+      exibir_relatorio_html: 'Montando dashboard...',
+      criar_pipeline: 'Criando pipeline...',
+      get_titulos_rep: 'Buscando títulos financeiros...',
+      get_mix_produtos: 'Analisando mix de produtos...',
+      whisper_stt: 'Transcrevendo áudio...',
     };
-    return labels[tool] || 'Consultando dados...';
+    return labels[tool] || 'Processando dados...';
   };
 
   const MessageAudioPlayer = ({ message }: { message: Message }) => {
-    const [msgSound, setMsgSound] = useState<Audio.Sound | null>(null);
-    const [isPlaying, setIsPlaying] = useState(false);
-    const [position, setPosition] = useState(0);
-    const [duration, setDuration] = useState(1);
-    const [isLoading, setIsLoading] = useState(false);
+    // Only access player status if the screen is focused to avoid SharedObject errors on unmount
+    const isCurrentPlaying = isFocused && activePlayingId === message.id;
+    const isPlaying = isCurrentPlaying && playerStatus.playing;
+    const currentProgress = isCurrentPlaying ? (playerStatus.currentTime / (playerStatus.duration || 1)) * 100 : 0;
+    const displayTime = isCurrentPlaying ? playerStatus.currentTime : 0;
+    
+    // We only show duration if it's not the current playing one or if we have it
+    const duration = isCurrentPlaying ? playerStatus.duration : 0;
 
     const getAudioSource = async () => {
-      if (message.audioUri) return { uri: message.audioUri };
+      if (message.audioUri) return message.audioUri;
       
       if (message.role === 'user' && message.id) {
-        return { 
-          uri: `${api.defaults.baseURL}api/rep/chat/messages/${message.id}/audio`,
-          headers: api.defaults.headers.common as any
-        };
+        return `${api.defaults.baseURL}api/rep/chat/messages/${message.id}/audio`;
       }
 
       if (message.role === 'assistant' && message.id) {
-        setIsLoading(true);
+        setIsAudioLoading(true);
         try {
           const response = await api.post(`api/rep/chat/messages/${message.id}/tts`, {}, { responseType: 'blob' });
           const reader = new FileReader();
-          return new Promise((resolve, reject) => {
-            reader.onloadend = () => {
-              setIsLoading(false);
-              resolve({ uri: reader.result as string });
-            };
-            reader.onerror = () => { setIsLoading(false); reject(new Error("Erro ao ler o áudio")); };
+          return new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => { setIsAudioLoading(false); resolve(reader.result as string); };
+            reader.onerror = () => { setIsAudioLoading(false); reject(new Error("Erro ao ler o áudio")); };
             reader.readAsDataURL(response.data);
           });
-        } catch (err) { setIsLoading(false); throw err; }
+        } catch (err) { setIsAudioLoading(false); throw err; }
       }
 
-      setIsLoading(true);
+      setIsAudioLoading(true);
       try {
         const cleanText = message.content.replace(/[*_#`\[\]()]/g, '').replace(/\n/g, '. ').substring(0, 500);
         const response = await api.post('/api/rep/chat/tts', { text: cleanText }, { responseType: 'arraybuffer' });
         const uint8 = new Uint8Array(response.data);
+        
         let binary = '';
-        uint8.forEach(byte => binary += String.fromCharCode(byte));
-        const base64 = btoa(binary);
-        const path = (FileSystem.cacheDirectory || '') + `tts_${message.id}.mp3`;
+        for (let i = 0; i < uint8.byteLength; i++) {
+          binary += String.fromCharCode(uint8[i]);
+        }
+        
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+        let base64 = '';
+        for (let i = 0; i < binary.length; i += 3) {
+          let chunk = (binary.charCodeAt(i) << 16) | (binary.charCodeAt(i + 1) << 8) | binary.charCodeAt(i + 2);
+          base64 += chars[(chunk & 0xFC0000) >> 18] + chars[(chunk & 0x3F000) >> 12] + chars[(chunk & 0xFC0) >> 6] + chars[chunk & 0x3F];
+        }
+        
+        // Workaround for SDK 54 type shadowing on FileSystem.cacheDirectory
+        const cacheDir = (FileSystem as any).cacheDirectory || '';
+        const path = cacheDir + `tts_${message.id}.mp3`;
         await FileSystem.writeAsStringAsync(path, base64, { encoding: 'base64' as any });
         message.audioUri = path;
-        return { uri: path };
-      } catch (e) { return null; } finally { setIsLoading(false); }
+        return path;
+      } catch (e) { console.error('TTS Source Error:', e); return null; } finally { setIsAudioLoading(false); }
     };
 
-    const togglePlayback = async () => {
+    const handleToggle = async () => {
       await configureAudioMode(false);
-      if (msgSound) {
-        if (isPlaying) await msgSound.pauseAsync();
-        else await msgSound.playAsync();
+      
+      if (isCurrentPlaying) {
+        if (globalPlayer.playing) globalPlayer.pause();
+        else globalPlayer.play();
         return;
       }
+
+      // Switching audio
       const source = await getAudioSource();
       if (!source) return;
-      try {
-        const { sound: newSound } = await Audio.Sound.createAsync(
-          source as any,
-          { shouldPlay: true },
-          (status: any) => {
-            if (status.isLoaded) {
-              setIsPlaying(status.isPlaying);
-              setPosition(status.positionMillis || 0);
-              setDuration(status.durationMillis || 1);
-              if (status.didJustFinish) { setIsPlaying(false); setPosition(0); }
-            }
-          }
-        );
-        setMsgSound(newSound);
-      } catch (e) {}
-    };
 
-    useEffect(() => {
-      return () => { if (msgSound) msgSound.unloadAsync(); };
-    }, [msgSound]);
+      setActivePlayingId(message.id);
+      globalPlayer.replace(source);
+      globalPlayer.play();
+    };
 
     const formatTime = (millis: number) => {
-      const minutes = Math.floor(millis / 60000);
-      const seconds = ((millis % 60000) / 1000).toFixed(0);
-      return `${minutes}:${Number(seconds) < 10 ? '0' : ''}${seconds}`;
+      const seconds = Math.floor(millis / 1000);
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = seconds % 60;
+      return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
     };
 
-    const progress = (position / duration) * 100;
     const isMsgFromUser = message.role === 'user';
     const iconColor = isMsgFromUser ? '#FFFFFF' : THEME.primary;
     const barBgColor = isMsgFromUser ? 'rgba(255,255,255,0.2)' : 'rgba(128,128,128,0.1)';
@@ -517,15 +631,15 @@ export default function ChatScreen() {
 
     return (
       <View style={styles.playerContainer}>
-        <Pressable onPress={togglePlayback} style={styles.playButtonCompact}>
-          {isLoading ? <ActivityIndicator size="small" color={iconColor} /> : 
+        <Pressable onPress={handleToggle} style={styles.playButtonCompact}>
+          {(isAudioLoading && isCurrentPlaying) ? <ActivityIndicator size="small" color={iconColor} /> : 
           <FontAwesome name={isPlaying ? "pause" : "play"} size={12} color={iconColor} />}
         </Pressable>
         <View style={[styles.progressBarBg, { backgroundColor: barBgColor }]}>
-          <View style={[styles.progressBarFill, { width: `${progress}%`, backgroundColor: progressBarColor }]} />
+          <View style={[styles.progressBarFill, { width: `${currentProgress}%`, backgroundColor: progressBarColor }]} />
         </View>
         <Text style={[styles.durationText, { color: textColor }]}>
-          {isPlaying || position > 0 ? formatTime(position) : formatTime(duration > 1 ? duration : 0)}
+          {isCurrentPlaying ? formatTime(displayTime * 1000) : (message.id.toString().includes('voice-temp') ? '...' : '0:00')}
         </Text>
       </View>
     );
@@ -537,13 +651,22 @@ export default function ChatScreen() {
     if (item.type === 'map_embed') return renderMapCard(item.data);
     if (item.type === 'html_widget') return renderHtmlCard(item.data);
 
+    const isStreaming = item.id === 'streaming-bot';
+
     return (
       <View style={[styles.bubbleWrapper, isUser ? styles.userBubbleWrapper : styles.assistantBubbleWrapper]}>
         <View style={[styles.messageBubble, isUser ? styles.userBubble : [styles.assistantBubble, { backgroundColor: THEME.assistantBubble }]]}>
-          <Markdown style={isUser ? userMarkdownStyles : assistantMarkdownStyles}>
-            {item.content}
-          </Markdown>
-          {(item.role === 'assistant' || item.hasAudio || item.isVoice) && (
+          {isUser && item.content === 'Transcrevendo áudio...' ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <ActivityIndicator size="small" color="#FFFFFF" />
+              <Text style={{ color: '#FFFFFF', fontSize: 16 }}>Transcrevendo áudio...</Text>
+            </View>
+          ) : (
+            <Markdown style={isUser ? userMarkdownStyles : assistantMarkdownStyles}>
+              {item.content + (isStreaming ? ' ▌' : '')}
+            </Markdown>
+          )}
+          {(item.role === 'assistant' && !isStreaming) && (
             <MessageAudioPlayer message={item} />
           )}
         </View>
@@ -598,10 +721,11 @@ export default function ChatScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: THEME.background }]}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />
       <Stack.Screen 
         options={{ 
           headerShown: true,
+          headerTitleAlign: 'center',
           headerTitle: () => (
             <View style={styles.headerTitleContainer}>
               <Text style={[styles.headerTitleMain, { color: THEME.textMain }]}>Assistente</Text>
@@ -623,40 +747,76 @@ export default function ChatScreen() {
         }} 
       />
 
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        keyExtractor={(item, index) => item.id.toString() + index}
-        renderItem={renderMessage}
-        contentContainerStyle={styles.scrollContent}
-        ListFooterComponent={() => (
-          <View>
-            {streamPhase === 'waiting' && (
-              <View style={styles.assistantBubbleWrapper}>
-                <View style={[styles.messageBubble, { backgroundColor: THEME.assistantBubble }, styles.loadingBubble]}>
-                  <ActivityIndicator size="small" color={THEME.textSecondary} />
-                  <Text style={[styles.loadingLabel, { color: THEME.textSecondary }]}>{pendingTool ? getToolLabel(pendingTool) : 'digitando...'}</Text>
-                </View>
-              </View>
-            )}
-            {streamPhase === 'streaming' && (
-              <View style={styles.assistantBubbleWrapper}>
-                <View style={[styles.messageBubble, { backgroundColor: THEME.assistantBubble }]}>
-                  <Markdown style={assistantMarkdownStyles}>{streamingText}</Markdown>
-                </View>
-              </View>
-            )}
-            <View style={{ height: 120 }} />
-          </View>
-        )}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
-      />
-
       <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
-        style={styles.keyboardView}
+        behavior="padding"
+        keyboardVerticalOffset={90}
+        style={{ flex: 1 }}
       >
+        <ImageBackground 
+          source={require('../../assets/images/chat-background.png')}
+          style={{ flex: 1 }}
+          imageStyle={{ opacity: isDark ? 0.05 : 0.08, tintColor: isDark ? '#FFF' : undefined }}
+        >
+          <View style={{ flex: 1 }}>
+            <FlatList
+          ref={flatListRef}
+          data={messages}
+          keyExtractor={(item, index) => item.id.toString()}
+          renderItem={renderMessage}
+          contentContainerStyle={styles.scrollContent}
+          ListHeaderComponent={() => (
+            messages.length === 0 && !loading ? (
+               <View style={styles.emptyState}>
+                  <View style={[styles.emptyIcon, { backgroundColor: THEME.primary + '10' }]}>
+                    <FontAwesome name="star" size={40} color={THEME.primary} />
+                  </View>
+                  <Text style={[styles.emptyTitle, { color: THEME.textMain }]}>Como posso ajudar?</Text>
+                  <Text style={[styles.emptySub, { color: THEME.textSecondary }]}>
+                    Faça perguntas sobre suas vendas, clientes e metas. Consulto seus dados em tempo real.
+                  </Text>
+                  
+                <View style={styles.suggestionGrid}>
+                   {[
+                     { t: 'Minha meta atual?', q: 'Quero informações da minha meta atual?', i: 'bullseye' },
+                     { t: 'Clientes sem atendimento?', q: 'Quais clientes ainda não foram atendidos na última coleção?', i: 'users' },
+                     { t: 'Top 5 Clientes?', q: 'Quais foram os 5 melhores clientes da coleção anterior?', i: 'line-chart' }
+                   ].map((s: any, idx) => (
+                     <TouchableOpacity 
+                       key={idx} 
+                       style={[styles.suggestionBtn, { backgroundColor: THEME.assistantBubble, borderColor: THEME.border }]}
+                       onPress={() => sendMessage(s.q)}
+                     >
+                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                         <View style={[styles.suggestionIconWrapper, { backgroundColor: THEME.primary + '15' }]}>
+                           <FontAwesome name={s.i} size={16} color={THEME.primary} />
+                         </View>
+                         <Text style={[styles.suggestionText, { color: THEME.textMain }]}>{s.t}</Text>
+                       </View>
+                     </TouchableOpacity>
+                   ))}
+                </View>
+               </View>
+            ) : null
+          )}
+          ListFooterComponent={() => (
+            <View>
+              {streamPhase === 'waiting' && 
+               !messages.some(m => m.id === 'streaming-bot') && 
+               pendingTool !== 'whisper_stt' && (
+                <View style={styles.assistantBubbleWrapper}>
+                  <View style={[styles.messageBubble, { backgroundColor: THEME.assistantBubble }, styles.loadingBubble]}>
+                    <ActivityIndicator size="small" color={THEME.textSecondary} />
+                    <Text style={[styles.loadingLabel, { color: THEME.textSecondary }]}>{pendingTool ? getToolLabel(pendingTool) : 'digitando...'}</Text>
+                  </View>
+                </View>
+              )}
+              <View style={{ height: 40 }} />
+            </View>
+          )}
+        />
+          </View>
+        </ImageBackground>
+
         <View style={[
           styles.footer, 
           { paddingBottom: Math.max(insets.bottom, 16) }
@@ -672,6 +832,9 @@ export default function ChatScreen() {
                 multiline
                 maxLength={500}
                 editable={streamPhase === 'idle'}
+                onFocus={() => {
+                  setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 0);
+                }}
               />
             )}
 
@@ -785,19 +948,27 @@ const styles = StyleSheet.create({
   assetButtonText: { fontSize: 14, fontWeight: '600', color: '#007AFF' },
   loadingBubble: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   loadingLabel: { fontSize: 13, color: '#8E8E93' },
-  keyboardView: { position: 'absolute', bottom: 0, left: 0, right: 0 },
+  keyboardView: { backgroundColor: 'transparent' },
   footer: { 
     paddingHorizontal: 16, 
-    paddingVertical: 10,
+    paddingVertical: 6,
     backgroundColor: 'transparent',
   },
+  emptyState: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 20 },
+  emptyIcon: { width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  emptyTitle: { fontSize: 22, fontWeight: '800', marginBottom: 8 },
+  emptySub: { fontSize: 15, textAlign: 'center', lineHeight: 22, marginBottom: 30 },
+  suggestionGrid: { width: '100%', gap: 10 },
+  suggestionBtn: { padding: 12, borderRadius: 16, borderWidth: 1, width: '100%', marginBottom: 8 },
+  suggestionIconWrapper: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+  suggestionText: { fontSize: 15, fontWeight: '600' },
   inputWrapper: { 
     flexDirection: 'row', 
     alignItems: 'center', 
     backgroundColor: '#FFFFFF', 
     borderRadius: 24, 
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 2,
     borderWidth: 1,
     borderColor: '#E5E5EA',
     shadowColor: '#000',
@@ -811,8 +982,8 @@ const styles = StyleSheet.create({
     fontSize: 16, 
     color: '#000000', 
     maxHeight: 120, 
-    paddingTop: 8, 
-    paddingBottom: 8,
+    paddingTop: 2, 
+    paddingBottom: 2,
     paddingHorizontal: 8,
   },
   inputActions: { flexDirection: 'row', alignItems: 'center', marginLeft: 8 },

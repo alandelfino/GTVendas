@@ -7,7 +7,6 @@ import {
     Dimensions,
     Image,
     Modal,
-    Platform,
     Pressable,
     RefreshControl,
     ScrollView,
@@ -19,6 +18,7 @@ import {
     View
 } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import api from '../../api/api';
 import { useAuth } from '../../context/AuthContext';
@@ -44,6 +44,7 @@ interface MetaGrupo {
 export default function DashboardScreen() {
     const { user, signOut } = useAuth();
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
 
@@ -65,6 +66,7 @@ export default function DashboardScreen() {
         separator: isDark ? '#38383A' : '#C6C6C8',
         accent: '#6C5CE7',
         positive: '#32D74B',
+        danger: '#FF453A',
     };
 
     useEffect(() => {
@@ -166,6 +168,7 @@ export default function DashboardScreen() {
     // Custom Half-Gauge Component
     const HalfGauge = ({ totalUnits, bronze, prata, ouro, isDark, THEME, metaName, metaDate }: { totalUnits: number, bronze: number, prata: number, ouro: number, isDark: boolean, THEME: any, metaName: string, metaDate: string }) => {
         const size = width - 80;
+        if (size <= 0) return null;
         const strokeWidth = 22;
         const radius = (size - strokeWidth) / 2;
         const circumference = Math.PI * radius;
@@ -215,8 +218,6 @@ export default function DashboardScreen() {
                     <View style={styles.gaugeContent}>
                         <Text style={[styles.gaugeUnits, { color: THEME.text }]}>{totalUnits.toLocaleString('pt-BR')}</Text>
                         <Text style={[styles.gaugeSublabel, { color: THEME.secondaryText }]}>unidades vendidas</Text>
-                        <Text style={[styles.gaugeMetaName, { color: THEME.text }]} numberOfLines={1}>{metaName}</Text>
-                        <Text style={[styles.gaugeMetaDate, { color: THEME.secondaryText }]}>{metaDate}</Text>
                     </View>
                 </View>
 
@@ -232,6 +233,7 @@ export default function DashboardScreen() {
     if (loading) {
         return (
             <View style={[styles.loadingContainer, { backgroundColor: THEME.bg }]}>
+                <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />
                 <ActivityIndicator size="small" color={THEME.navText} />
             </View>
         );
@@ -258,7 +260,7 @@ export default function DashboardScreen() {
 
     return (
         <View style={[styles.container, { backgroundColor: THEME.bg }]}>
-            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />
             <Stack.Screen options={{ headerShown: false }} />
 
             <View style={[styles.topNav, { backgroundColor: THEME.bg }]}>
@@ -295,7 +297,7 @@ export default function DashboardScreen() {
                 }
             >
                 <View style={styles.headerTitleArea}>
-                    <Text style={[styles.userName, { color: THEME.text }]}>Olá, {user?.nomeCompleto?.split(' ')[0] || user?.username}</Text>
+                    <Text style={[styles.userName, { color: THEME.text }]}>Olá, {user?.nomeCompleto?.split(' ')[0] || user?.username || ''}</Text>
                     <Text style={[styles.headerSubtitle, { color: THEME.secondaryText }]}>
                         {selectedMeta?.grupoNome || ''}
                     </Text>
@@ -435,10 +437,24 @@ export default function DashboardScreen() {
             </ScrollView>
 
             {/* Fixed Bottom Menu (IOS UI KIT Style) */}
-            <BlurView intensity={isDark ? 85 : 95} tint={isDark ? 'dark' : 'light'} style={styles.fixedBottomNav}>
-                <View style={[styles.navInner, { borderTopColor: THEME.separator }]}>
+            <View style={[
+                styles.fixedBottomNav, 
+                { 
+                    backgroundColor: 'transparent',
+                    paddingBottom: insets.bottom,
+                }
+            ]}>
+                <BlurView 
+                    intensity={isDark ? 85 : 95} 
+                    tint={isDark ? 'dark' : 'light'} 
+                    style={StyleSheet.absoluteFill} 
+                />
+                <View style={[
+                    styles.navInner, 
+                    { borderTopColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }
+                ]}>
                     <TouchableOpacity style={styles.navButtonItem} onPress={() => router.push('/chat')}>
-                        <FontAwesome name="commenting-o" size={20} color={THEME.navText} />
+                        <FontAwesome name="commenting-o" size={22} color={THEME.navText} />
                         <Text style={[styles.navButtonLabel, { color: THEME.navText }]}>Assistente</Text>
                     </TouchableOpacity>
 
@@ -462,12 +478,25 @@ export default function DashboardScreen() {
                         <Text style={[styles.navButtonLabel, { color: THEME.navText }]}>Pipeline</Text>
                     </TouchableOpacity>
                 </View>
-            </BlurView>
+            </View>
 
             {/* iOS Modal Menu */}
-            <Modal visible={showUserMenu} animationType="fade" transparent={true}>
-                <Pressable style={styles.iosModalOverlay} onPress={() => setShowUserMenu(false)}>
-                    <View style={[styles.iosMenuSheet, { backgroundColor: isDark ? '#1C1C1E' : '#F2F2F7' }]}>
+            <Modal 
+                visible={showUserMenu} 
+                animationType="fade" 
+                transparent={true}
+            >
+                <Pressable 
+                    style={styles.iosModalOverlay} 
+                    onPress={() => setShowUserMenu(false)}
+                >
+                    <View style={[
+                        styles.iosMenuSheet, 
+                        { 
+                            backgroundColor: isDark ? '#1C1C1E' : '#F2F2F7',
+                            paddingBottom: Math.max(40, insets.bottom),
+                        }
+                    ]}>
                         <View style={styles.menuHeader}>
                             <View style={[styles.menuAvatarLarge, { backgroundColor: isDark ? '#2C2C2E' : '#FFFFFF' }]}>
                                 <Text style={[styles.avatarLabelLarge, { color: THEME.navText }]}>{(user?.nomeCompleto || user?.username || 'U').charAt(0)}</Text>
@@ -485,8 +514,8 @@ export default function DashboardScreen() {
                         </TouchableOpacity>
 
                         <TouchableOpacity style={styles.menuActionItem} onPress={handleLogout}>
-                            <Text style={styles.logoutText}>Sair da Conta</Text>
-                            <FontAwesome name="sign-out" size={18} color="#FF453A" />
+                            <Text style={[styles.logoutText, { color: THEME.danger }]}>Sair da Conta</Text>
+                            <FontAwesome name="sign-out" size={18} color={THEME.danger} />
                         </TouchableOpacity>
                     </View>
                 </Pressable>
@@ -556,6 +585,7 @@ const styles = StyleSheet.create({
         fontSize: 17,
         marginTop: 2,
         fontWeight: '400',
+        opacity: 1,
     },
     sectionGroup: {
         paddingHorizontal: 20,
@@ -683,7 +713,7 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 6 },
         shadowOpacity: 0.08,
         shadowRadius: 15,
-        elevation: 4,
+        elevation: 6,
     },
     verticalLine: {
         position: 'absolute',
@@ -817,10 +847,10 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
     },
     iosMenuSheet: {
+        width: '100%',
         borderTopLeftRadius: 30,
         borderTopRightRadius: 30,
         padding: 24,
-        paddingBottom: 40,
     },
     menuHeader: {
         alignItems: 'center',
@@ -881,7 +911,6 @@ const styles = StyleSheet.create({
         position: 'absolute',
         bottom: 0,
         width: '100%',
-        paddingBottom: Platform.OS === 'ios' ? 30 : 10,
         zIndex: 1000,
     },
     navInner: {
@@ -892,9 +921,9 @@ const styles = StyleSheet.create({
         borderTopWidth: 0.5,
     },
     navButtonItem: {
+        flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        width: 100,
     },
     navButtonLabel: {
         fontSize: 10,

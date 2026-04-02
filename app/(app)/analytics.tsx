@@ -8,10 +8,10 @@ import {
   useColorScheme, 
   ActivityIndicator,
   Dimensions,
-  RefreshControl,
-  Platform
+  RefreshControl
 } from 'react-native';
 import { Stack } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LineChart } from 'react-native-chart-kit';
@@ -43,6 +43,7 @@ interface Colecao {
 export default function AnalyticsScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const insets = useSafeAreaInsets();
   
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -51,7 +52,6 @@ export default function AnalyticsScreen() {
   const [selectedColecao, setSelectedColecao] = useState<string | null>(null);
   const [groupBy, setGroupBy] = useState<'day' | 'week' | 'month'>('month');
   
-  // Sorting states
   const [prodSort, setProdSort] = useState<'valor' | 'quantidade'>('valor');
   const [catSort, setCatSort] = useState<'valor' | 'quantidade'>('valor');
   const [cliSort, setCliSort] = useState<'valor' | 'quantidade'>('valor');
@@ -63,10 +63,10 @@ export default function AnalyticsScreen() {
     text: isDark ? '#FFFFFF' : '#000000',
     secondary: isDark ? '#8E8E93' : '#636366',
     border: isDark ? '#38383A' : '#C6C6C8',
-    accent: '#0A84FF', // iOS System Blue
-    green: '#34C759', // iOS System Green
-    orange: '#FF9500', // iOS System Orange
-    purple: '#AF52DE', // iOS System Purple
+    accent: '#0A84FF',
+    green: '#34C759',
+    orange: '#FF9500',
+    purple: '#AF52DE',
     separator: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
   };
 
@@ -86,25 +86,13 @@ export default function AnalyticsScreen() {
     }
   };
 
-  // Fetch collections once on mount
   useEffect(() => {
     const loadColecoes = async () => {
       try {
-        console.log('--- Carregando Coleções ---');
         const colResponse = await api.get('/api/erp/colecoes');
         const collections = colResponse.data.data || colResponse.data;
-        
         if (Array.isArray(collections) && collections.length > 0) {
-          console.log(`Coleções encontradas: ${collections.length}`);
           setColecoes(collections);
-          // Auto-select last collection if none selected after collections load
-          if (selectedColecao === null) {
-            const lastId = collections[collections.length - 1].idExterno;
-            console.log(`Auto-selecionando coleção: ${lastId}`);
-            setSelectedColecao(lastId);
-          }
-        } else {
-          console.warn('Nenhuma coleção encontrada na API');
         }
       } catch (error) {
         console.error('Erro ao carregar coleções:', error);
@@ -114,9 +102,7 @@ export default function AnalyticsScreen() {
   }, []);
 
   useEffect(() => { 
-    // Só dispara o fetch se já houver coleções carregadas ou se for pra buscar "Todas" (null)
     if (selectedColecao !== null || (loading && colecoes.length === 0)) {
-      console.log(`Buscando analytics para: ${selectedColecao || 'Todas'}`);
       fetchData(); 
     }
   }, [selectedColecao, groupBy]);
@@ -163,39 +149,25 @@ export default function AnalyticsScreen() {
     </View>
   );
 
-  // Removido o return separado do loading para evitar flicker no cabeçalho
-
   const getChartLabels = () => {
     const rawData = data?.chart || [];
     if (rawData.length === 0) return ["-"];
-
     const allLabels = rawData.map(c => {
       const parts = c.periodo.split('-');
-      // Safely parse parts (year, month, day)
       const year = parseInt(parts[0]);
       const month = parts[1] ? parseInt(parts[1]) - 1 : 0;
       const day = parts[2] ? parseInt(parts[2]) : 1;
-      
-      const date = new Date(year, month, day);
-      
-      if (groupBy === 'day') {
-        return `${day.toString().padStart(2, '0')}/${(month + 1).toString().padStart(2, '0')}`;
-      } else if (groupBy === 'week') {
-        return `S${day.toString().padStart(2, '0')}/${(month + 1).toString().padStart(2, '0')}`;
-      } else {
-        const monthsAbbr = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-        return `${monthsAbbr[month]}/${parts[0].substring(2)}`;
-      }
+      if (groupBy === 'day') return `${day.toString().padStart(2, '0')}/${(month + 1).toString().padStart(2, '0')}`;
+      if (groupBy === 'week') return `S${day.toString().padStart(2, '0')}/${(month + 1).toString().padStart(2, '0')}`;
+      const monthsAbbr = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      return `${monthsAbbr[month]}/${parts[0].substring(2)}`;
     });
-
-    // IMPORTANT: Length MUST match data points. Use empty string for skipped labels.
     const step = Math.ceil(allLabels.length / 6);
     return allLabels.map((l, i) => (i % step === 0 || i === allLabels.length - 1) ? l : "");
   };
 
   const chartLabels = getChartLabels();
   const chartValues = (data?.chart || []).map(c => c.valor / 100000);
-
   const chartData = {
     labels: chartLabels,
     datasets: [{
@@ -212,7 +184,7 @@ export default function AnalyticsScreen() {
         title: 'Histórico de Metas',
         headerLargeTitle: true,
         headerBackTitle: 'Voltar',
-        headerTransparent: Platform.OS === 'ios',
+        headerTransparent: true,
         headerBlurEffect: isDark ? 'dark' : 'light',
         headerStyle: { backgroundColor: THEME.bg },
       }} />
@@ -226,203 +198,199 @@ export default function AnalyticsScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={THEME.accent} />}
         >
 
-      {/* FILTER ZONE (Coleções Only) */}
-      <View style={styles.filterArea}>
-        <SectionHeader title="Filtro de Coleção" />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colScrollContent}>
-          <TouchableOpacity 
-            style={[styles.colChip, !selectedColecao && { backgroundColor: THEME.accent }]}
-            onPress={() => setSelectedColecao(null)}
-          >
-            <Text style={[styles.colChipText, !selectedColecao && { color: '#FFF' }]}>Todas</Text>
-          </TouchableOpacity>
-          {(colecoes && Array.isArray(colecoes) ? colecoes : []).map(c => (
-            <TouchableOpacity 
-              key={c.idExterno}
-              style={[styles.colChip, selectedColecao === c.idExterno && { backgroundColor: THEME.accent }]}
-              onPress={() => setSelectedColecao(c.idExterno)}
-            >
-              <Text style={[styles.colChipText, selectedColecao === c.idExterno && { color: '#FFF' }]}>{c.nome}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+          <View style={styles.filterArea}>
+            <SectionHeader title="Filtro de Coleção" />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colScrollContent}>
+              <TouchableOpacity 
+                style={[styles.colChip, !selectedColecao && { backgroundColor: THEME.accent }]}
+                onPress={() => setSelectedColecao(null)}
+              >
+                <Text style={[styles.colChipText, !selectedColecao && { color: '#FFF' }]}>Todas</Text>
+              </TouchableOpacity>
+              {(colecoes && Array.isArray(colecoes) ? colecoes : []).map(c => (
+                <TouchableOpacity 
+                  key={c.idExterno}
+                  style={[styles.colChip, selectedColecao === c.idExterno && { backgroundColor: THEME.accent }]}
+                  onPress={() => setSelectedColecao(c.idExterno)}
+                >
+                  <Text style={[styles.colChipText, selectedColecao === c.idExterno && { color: '#FFF' }]}>{c.nome}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
 
-      <SectionHeader title="Resumo Comercial" />
-      <View style={styles.kpiGrid}>
-        <KpiCard label="Vendas" value={formatCurrency(data?.summary?.totalValor || 0)} icon="money" color={THEME.green} />
-        <KpiCard label="Pedidos" value={(data?.summary?.totalPedidos || 0).toString()} icon="shopping-bag" color={THEME.orange} />
-        <KpiCard label="Peças" value={(data?.summary?.totalQuantidade || 0).toString()} icon="tags" color={THEME.purple} />
-        <KpiCard label="Ticket" value={formatCurrency(data?.summary?.ticketMedio || 0)} icon="calculator" color={THEME.accent} />
-      </View>
+          <SectionHeader title="Resumo Comercial" />
+          <View style={styles.kpiGrid}>
+            <KpiCard label="Vendas" value={formatCurrency(data?.summary?.totalValor || 0)} icon="money" color={THEME.green} />
+            <KpiCard label="Pedidos" value={(data?.summary?.totalPedidos || 0).toString()} icon="shopping-bag" color={THEME.orange} />
+            <KpiCard label="Peças" value={(data?.summary?.totalQuantidade || 0).toString()} icon="tags" color={THEME.purple} />
+            <KpiCard label="Ticket" value={formatCurrency(data?.summary?.ticketMedio || 0)} icon="calculator" color={THEME.accent} />
+          </View>
 
-      <SectionHeader title="Carteira de Clientes" />
-      <View style={[styles.insetCard, { backgroundColor: THEME.card }]}>
-        <View style={styles.peneStats}>
-          <Text style={[styles.peneLabel, { color: THEME.text }]}>Clientes Atendidos</Text>
-          <Text style={[styles.peneValue, { color: THEME.accent }]}>
-             {Math.floor(((data?.clientesAtendidos || 0) / (data?.clientesAtivos || 1)) * 100)}%
-          </Text>
-        </View>
-        <View style={[styles.peneBarBg, { backgroundColor: isDark ? '#333' : '#E5E5EA' }]}>
-           <View style={[styles.peneBarFill, { 
-             width: `${((data?.clientesAtendidos || 0) / (data?.clientesAtivos || 1)) * 100}%`,
-             backgroundColor: THEME.accent
-           }]} />
-        </View>
-        <Text style={[styles.peneSub, { color: THEME.secondary }]}>
-          {data?.clientesAtendidos || 0} de {data?.clientesAtivos || 0} clientes ativos
-        </Text>
-      </View>
+          <SectionHeader title="Carteira de Clientes" />
+          <View style={[styles.insetCard, { backgroundColor: THEME.card }]}>
+            <View style={styles.peneStats}>
+              <Text style={[styles.peneLabel, { color: THEME.text }]}>Clientes Atendidos</Text>
+              <Text style={[styles.peneValue, { color: THEME.accent }]}>
+                 {Math.floor(((data?.clientesAtendidos || 0) / (data?.clientesAtivos || 1)) * 100)}%
+              </Text>
+            </View>
+            <View style={[styles.peneBarBg, { backgroundColor: isDark ? '#333' : '#E5E5EA' }]}>
+               <View style={[styles.peneBarFill, { 
+                 width: `${((data?.clientesAtendidos || 0) / (data?.clientesAtivos || 1)) * 100}%`,
+                 backgroundColor: THEME.accent
+               }]} />
+            </View>
+            <Text style={[styles.peneSub, { color: THEME.secondary }]}>
+              {data?.clientesAtendidos || 0} de {data?.clientesAtivos || 0} clientes ativos
+            </Text>
+          </View>
 
-      <View style={styles.sectionHeaderRow}>
-        <SectionHeader title="Tendência de Venda" />
-        <View style={[styles.segmentedControlSmall, { backgroundColor: isDark ? '#1C1C1E' : 'rgba(118, 118, 128, 0.12)' }]}>
-           {(['day', 'week', 'month'] as const).map(t => (
-             <TouchableOpacity 
-              key={t}
-              style={[styles.segmentBtn, groupBy === t && styles.segmentBtnActive]}
-              onPress={() => setGroupBy(t)}
-             >
-               <Text style={[styles.segmentTextSmall, { color: groupBy === t ? THEME.text : THEME.secondary }]}>
-                 {t === 'day' ? 'Dia' : t === 'week' ? 'Sem' : 'Mês'}
-               </Text>
-             </TouchableOpacity>
-           ))}
-        </View>
-      </View>
-      <View style={[styles.insetCard, { backgroundColor: THEME.card, padding: 10 }]}>
-        <LineChart
-          data={chartData}
-          width={width - 50}
-          height={200}
-          withHorizontalLines={false}
-          withVerticalLines={false}
-          verticalLabelRotation={groupBy === 'month' ? 0 : 45}
-          chartConfig={{
-            backgroundColor: THEME.card,
-            backgroundGradientFrom: THEME.card,
-            backgroundGradientTo: THEME.card,
-            color: (opacity = 1) => THEME.accent,
-            labelColor: (opacity = 1) => THEME.secondary,
-            propsForBackgroundLines: { borderRadius: 16 },
-            strokeWidth: 2,
-            decimalPlaces: 0,
-            propsForLabels: {
-              fontSize: 10,
-            }
-          }}
-          bezier
-          style={{ borderRadius: 16, marginTop: groupBy === 'month' ? 0 : 10 }}
-        />
-      </View>
-
-      <View style={styles.sectionHeaderRow}>
-        <SectionHeader title="Top Produtos" />
-        <View style={styles.toggleRow}>
-          <TouchableOpacity onPress={() => setProdSort('valor')} style={[styles.toggleBtn, prodSort === 'valor' && styles.toggleBtnActive]}>
-            <Text style={[styles.toggleText, { color: prodSort === 'valor' ? THEME.text : THEME.secondary }]}>R$</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setProdSort('quantidade')} style={[styles.toggleBtn, prodSort === 'quantidade' && styles.toggleBtnActive]}>
-            <Text style={[styles.toggleText, { color: prodSort === 'quantidade' ? THEME.text : THEME.secondary }]}>un.</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-      <View style={[styles.tableCard, { backgroundColor: THEME.card }]}>
-        {(data?.topProdutos || [])
-          .sort((a, b) => b[prodSort] - a[prodSort])
-          .slice(0, 5)
-          .map((p, i, arr) => (
-            <RankingRow 
-              key={p.produtoId}
-              label={p.nome}
-              subtitle={p.produtoId}
-              value={prodSort === 'valor' ? formatCurrency(p.valor) : `${p.quantidade} un.`}
-              percentage={arr[0][prodSort] ? (p[prodSort] / arr[0][prodSort]) * 100 : 0}
-              showSeparator={i < 4}
+          <View style={styles.sectionHeaderRow}>
+            <SectionHeader title="Tendência de Venda" />
+            <View style={[styles.segmentedControlSmall, { backgroundColor: isDark ? '#1C1C1E' : 'rgba(118, 118, 128, 0.12)' }]}>
+               {(['day', 'week', 'month'] as const).map(t => (
+                 <TouchableOpacity 
+                  key={t}
+                  style={[styles.segmentBtn, groupBy === t && styles.segmentBtnActive]}
+                  onPress={() => setGroupBy(t)}
+                 >
+                   <Text style={[styles.segmentTextSmall, { color: groupBy === t ? THEME.text : THEME.secondary }]}>
+                     {t === 'day' ? 'Dia' : t === 'week' ? 'Sem' : 'Mês'}
+                   </Text>
+                 </TouchableOpacity>
+               ))}
+            </View>
+          </View>
+          <View style={[styles.insetCard, { backgroundColor: THEME.card, padding: 10 }]}>
+            <LineChart
+              data={chartData}
+              width={width - 50}
+              height={200}
+              withHorizontalLines={false}
+              withVerticalLines={false}
+              verticalLabelRotation={groupBy === 'month' ? 0 : 45}
+              chartConfig={{
+                backgroundColor: THEME.card,
+                backgroundGradientFrom: THEME.card,
+                backgroundGradientTo: THEME.card,
+                color: (opacity = 1) => THEME.accent,
+                labelColor: (opacity = 1) => THEME.secondary,
+                propsForBackgroundLines: { borderRadius: 16 },
+                strokeWidth: 2,
+                decimalPlaces: 0,
+                propsForLabels: { fontSize: 10 }
+              }}
+              bezier
+              style={{ borderRadius: 16, marginTop: groupBy === 'month' ? 0 : 10 }}
             />
-          ))}
-      </View>
+          </View>
 
-      <View style={styles.sectionHeaderRow}>
-        <SectionHeader title="Top Categorias" />
-        <View style={styles.toggleRow}>
-          <TouchableOpacity onPress={() => setCatSort('valor')} style={[styles.toggleBtn, catSort === 'valor' && styles.toggleBtnActive]}>
-            <Text style={[styles.toggleText, { color: catSort === 'valor' ? THEME.text : THEME.secondary }]}>R$</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setCatSort('quantidade')} style={[styles.toggleBtn, catSort === 'quantidade' && styles.toggleBtnActive]}>
-            <Text style={[styles.toggleText, { color: catSort === 'quantidade' ? THEME.text : THEME.secondary }]}>un.</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-      <View style={[styles.tableCard, { backgroundColor: THEME.card }]}>
-        {(data?.topCategorias || [])
-          .sort((a, b) => b[catSort] - a[catSort])
-          .slice(0, 5)
-          .map((c, i, arr) => (
-            <RankingRow 
-              key={c.categoriaId}
-              label={c.nome}
-              value={catSort === 'valor' ? formatCurrency(c.valor) : `${c.quantidade} un.`}
-              percentage={arr[0][catSort] ? (c[catSort] / arr[0][catSort]) * 100 : 0}
-              showSeparator={i < 4}
-            />
-          ))}
-      </View>
+          <View style={styles.sectionHeaderRow}>
+            <SectionHeader title="Top Produtos" />
+            <View style={styles.toggleRow}>
+              <TouchableOpacity onPress={() => setProdSort('valor')} style={[styles.toggleBtn, prodSort === 'valor' && styles.toggleBtnActive]}>
+                <Text style={[styles.toggleText, { color: prodSort === 'valor' ? THEME.text : THEME.secondary }]}>R$</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setProdSort('quantidade')} style={[styles.toggleBtn, prodSort === 'quantidade' && styles.toggleBtnActive]}>
+                <Text style={[styles.toggleText, { color: prodSort === 'quantidade' ? THEME.text : THEME.secondary }]}>un.</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          <View style={[styles.tableCard, { backgroundColor: THEME.card }]}>
+            {(data?.topProdutos || [])
+              .sort((a, b) => b[prodSort] - a[prodSort])
+              .slice(0, 5)
+              .map((p, i, arr) => (
+                <RankingRow 
+                  key={p.produtoId}
+                  label={p.nome}
+                  subtitle={p.produtoId}
+                  value={prodSort === 'valor' ? formatCurrency(p.valor) : `${p.quantidade} un.`}
+                  percentage={arr[0][prodSort] ? (p[prodSort] / arr[0][prodSort]) * 100 : 0}
+                  showSeparator={i < 4}
+                />
+              ))}
+          </View>
 
-      <View style={styles.sectionHeaderRow}>
-        <SectionHeader title="Top Clientes" />
-        <View style={styles.toggleRow}>
-          <TouchableOpacity onPress={() => setCliSort('valor')} style={[styles.toggleBtn, cliSort === 'valor' && styles.toggleBtnActive]}>
-            <Text style={[styles.toggleText, { color: cliSort === 'valor' ? THEME.text : THEME.secondary }]}>R$</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setCliSort('quantidade')} style={[styles.toggleBtn, cliSort === 'quantidade' && styles.toggleBtnActive]}>
-            <Text style={[styles.toggleText, { color: cliSort === 'quantidade' ? THEME.text : THEME.secondary }]}>un.</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-      <View style={[styles.tableCard, { backgroundColor: THEME.card }]}>
-        {(data?.topClientes || [])
-          .sort((a, b) => b[cliSort] - a[cliSort])
-          .slice(0, 5)
-          .map((c, i, arr) => (
-            <RankingRow 
-              key={c.clienteId}
-              label={c.nome}
-              value={cliSort === 'valor' ? formatCurrency(c.valor) : `${c.quantidade} un.`}
-              percentage={arr[0][cliSort] ? (c[cliSort] / arr[0][cliSort]) * 100 : 0}
-              showSeparator={i < 4}
-            />
-          ))}
-      </View>
+          <View style={styles.sectionHeaderRow}>
+            <SectionHeader title="Top Categorias" />
+            <View style={styles.toggleRow}>
+              <TouchableOpacity onPress={() => setCatSort('valor')} style={[styles.toggleBtn, catSort === 'valor' && styles.toggleBtnActive]}>
+                <Text style={[styles.toggleText, { color: catSort === 'valor' ? THEME.text : THEME.secondary }]}>R$</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setCatSort('quantidade')} style={[styles.toggleBtn, catSort === 'quantidade' && styles.toggleBtnActive]}>
+                <Text style={[styles.toggleText, { color: catSort === 'quantidade' ? THEME.text : THEME.secondary }]}>un.</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          <View style={[styles.tableCard, { backgroundColor: THEME.card }]}>
+            {(data?.topCategorias || [])
+              .sort((a, b) => b[catSort] - a[catSort])
+              .slice(0, 5)
+              .map((c, i, arr) => (
+                <RankingRow 
+                  key={c.categoriaId}
+                  label={c.nome}
+                  value={catSort === 'valor' ? formatCurrency(c.valor) : `${c.quantidade} un.`}
+                  percentage={arr[0][catSort] ? (c[catSort] / arr[0][catSort]) * 100 : 0}
+                  showSeparator={i < 4}
+                />
+              ))}
+          </View>
 
-      <View style={styles.sectionHeaderRow}>
-        <SectionHeader title="Top Cidades" />
-        <View style={styles.toggleRow}>
-          <TouchableOpacity onPress={() => setCitySort('valor')} style={[styles.toggleBtn, citySort === 'valor' && styles.toggleBtnActive]}>
-            <Text style={[styles.toggleText, { color: citySort === 'valor' ? THEME.text : THEME.secondary }]}>R$</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setCitySort('quantidade')} style={[styles.toggleBtn, citySort === 'quantidade' && styles.toggleBtnActive]}>
-            <Text style={[styles.toggleText, { color: citySort === 'quantidade' ? THEME.text : THEME.secondary }]}>un.</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-      <View style={[styles.tableCard, { backgroundColor: THEME.card }]}>
-        {(data?.topCidades || [])
-          .sort((a, b) => b[citySort] - a[citySort])
-          .slice(0, 5)
-          .map((city, i, arr) => (
-            <RankingRow 
-              key={city.cidade + city.uf}
-              label={`${city.cidade} - ${city.uf}`}
-              value={citySort === 'valor' ? formatCurrency(city.valor) : `${city.quantidade} un.`}
-              percentage={arr[0][citySort] ? (city[citySort] / arr[0][citySort]) * 100 : 0}
-              showSeparator={i < 4}
-            />
-          ))}
-      </View>
-      
-      <View style={{ height: 100 }} />
+          <View style={styles.sectionHeaderRow}>
+            <SectionHeader title="Top Clientes" />
+            <View style={styles.toggleRow}>
+              <TouchableOpacity onPress={() => setCliSort('valor')} style={[styles.toggleBtn, cliSort === 'valor' && styles.toggleBtnActive]}>
+                <Text style={[styles.toggleText, { color: cliSort === 'valor' ? THEME.text : THEME.secondary }]}>R$</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setCliSort('quantidade')} style={[styles.toggleBtn, cliSort === 'quantidade' && styles.toggleBtnActive]}>
+                <Text style={[styles.toggleText, { color: cliSort === 'quantidade' ? THEME.text : THEME.secondary }]}>un.</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          <View style={[styles.tableCard, { backgroundColor: THEME.card }]}>
+            {(data?.topClientes || [])
+              .sort((a, b) => b[cliSort] - a[cliSort])
+              .slice(0, 5)
+              .map((c, i, arr) => (
+                <RankingRow 
+                  key={c.clienteId}
+                  label={c.nome}
+                  value={cliSort === 'valor' ? formatCurrency(c.valor) : `${c.quantidade} un.`}
+                  percentage={arr[0][cliSort] ? (c[cliSort] / arr[0][cliSort]) * 100 : 0}
+                  showSeparator={i < 4}
+                />
+              ))}
+          </View>
+
+          <View style={styles.sectionHeaderRow}>
+            <SectionHeader title="Top Cidades" />
+            <View style={styles.toggleRow}>
+              <TouchableOpacity onPress={() => setCitySort('valor')} style={[styles.toggleBtn, citySort === 'valor' && styles.toggleBtnActive]}>
+                <Text style={[styles.toggleText, { color: citySort === 'valor' ? THEME.text : THEME.secondary }]}>R$</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setCitySort('quantidade')} style={[styles.toggleBtn, citySort === 'quantidade' && styles.toggleBtnActive]}>
+                <Text style={[styles.toggleText, { color: citySort === 'quantidade' ? THEME.text : THEME.secondary }]}>un.</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          <View style={[styles.tableCard, { backgroundColor: THEME.card }]}>
+            {(data?.topCidades || [])
+              .sort((a, b) => b[citySort] - a[citySort])
+              .slice(0, 5)
+              .map((city, i, arr) => (
+                <RankingRow 
+                  key={city.cidade + city.uf}
+                  label={`${city.cidade} - ${city.uf}`}
+                  value={citySort === 'valor' ? formatCurrency(city.valor) : `${city.quantidade} un.`}
+                  percentage={arr[0][citySort] ? (city[citySort] / arr[0][citySort]) * 100 : 0}
+                  showSeparator={i < 4}
+                />
+              ))}
+          </View>
+
         </ScrollView>
       )}
     </View>
@@ -433,7 +401,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { 
     paddingHorizontal: 16, 
-    paddingTop: Platform.OS === 'ios' ? 20 : 20, 
+    paddingTop: 20, 
     paddingBottom: 100 
   },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
@@ -444,9 +412,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginTop: 24,
   },
-  filterArea: {
-    marginBottom: 8,
-  },
+  filterArea: { marginBottom: 8 },
   colScrollContent: { paddingVertical: 8 },
   colChip: {
     paddingHorizontal: 12,
@@ -527,9 +493,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     overflow: 'hidden',
   },
-  rankingRow: {
-    paddingLeft: 16,
-  },
+  rankingRow: { paddingLeft: 16 },
   rankingContent: {
     paddingVertical: 12,
     paddingRight: 16,
@@ -571,8 +535,5 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
-  toggleText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
+  toggleText: { fontSize: 11, fontWeight: '700' },
 });

@@ -8,8 +8,7 @@ import {
   Image, 
   TouchableOpacity, 
   StatusBar,
-  useColorScheme,
-  Platform
+  useColorScheme
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { FontAwesome } from '@expo/vector-icons';
@@ -97,7 +96,7 @@ export default function MetasHistoryScreen() {
         title: 'Histórico de Metas',
         headerLargeTitle: true,
         headerBackTitle: 'Voltar',
-        headerTransparent: Platform.OS === 'ios',
+        headerTransparent: true,
         headerBlurEffect: isDark ? 'dark' : 'light',
         headerTintColor: THEME.primary,
         headerStyle: { backgroundColor: THEME.bg }
@@ -159,7 +158,16 @@ const styles = StyleSheet.create({
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyContainer: { flex: 1, paddingTop: 100, alignItems: 'center', justifyContent: 'center' },
   emptyText: { fontSize: 16, textAlign: 'center', marginTop: 16 },
-  historyCard: { borderRadius: 20, padding: 20, marginBottom: 16, borderWidth: 1, ...Platform.select({ ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 10 }, android: { elevation: 2 } }) },
+  historyCard: { 
+    borderRadius: 20, 
+    padding: 20, 
+    marginBottom: 16, 
+    borderWidth: 1, 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 2 }, 
+    shadowOpacity: 0.03, 
+    shadowRadius: 10 
+  },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   statusText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
