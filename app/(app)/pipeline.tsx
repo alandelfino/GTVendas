@@ -30,12 +30,12 @@ export default function PipelineScreen() {
   const insets = useSafeAreaInsets();
   
   const THEME: Theme = {
-    bg: isDark ? '#000000' : '#F2F2F7',
-    card: isDark ? '#1C1C1E' : '#FFFFFF',
-    text: isDark ? '#FFFFFF' : '#000000',
-    secondary: isDark ? '#8E8E93' : '#636366',
-    border: isDark ? '#2C2C2E' : '#E5E5EA',
-    accent: '#0A84FF',
+    bg: isDark ? '#1C252E' : '#F2F2F7',
+    card: isDark ? '#2C3641' : '#FFFFFF',
+    text: isDark ? '#FFFFFF' : '#1C252E',
+    secondary: isDark ? '#8E9AA9' : '#636366',
+    border: isDark ? '#3D4956' : '#E5E5EA',
+    accent: '#F9B252',
     red: '#FF3B30',
     green: '#34C759',
   };
@@ -62,7 +62,7 @@ export default function PipelineScreen() {
   // Kanban View States
   const [kanbanCards, setKanbanCards] = useState<Card[]>([]);
   const [activeStageId, setActiveStageId] = useState<number | null>(null);
-  const [kanbanActionLoading, setKanbanActionLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
 
   const init = async (isRefresh = false, isSilent = false) => {
     if (!isRefresh && !isSilent) setLoading(true);
@@ -154,10 +154,13 @@ export default function PipelineScreen() {
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Excluir Quadro', style: 'destructive', onPress: async () => {
           try {
+            setActionLoading(true);
             await api.delete(`/api/rep/pipeline-boards/${id}`);
             await init(false, true);
           } catch (err) {
             Alert.alert('Erro', 'Não foi possível excluir o quadro.');
+          } finally {
+            setActionLoading(false);
           }
       }}
     ]);
@@ -191,14 +194,15 @@ export default function PipelineScreen() {
       const updatedStages = data.map((s, idx) => ({ ...s, ordem: idx + 1 }));
       setSelectedBoard({ ...selectedBoard, estagios: updatedStages });
       
-      for (const stage of updatedStages) {
-        await api.put(`/api/rep/pipeline-boards/estagios/${stage.id}`, { 
-          nome: stage.nome, 
-          cor: stage.cor, 
-          ordem: stage.ordem 
+      // Using new optimized reorder endpoint
+      const movedStage = updatedStages.find((s, idx) => s.id !== selectedBoard.estagios[idx]?.id);
+      if (movedStage) {
+        setActionLoading(true);
+        await api.patch(`/api/rep/pipeline-boards/estagios/${movedStage.id}/reorder`, { 
+          ordem: movedStage.ordem 
         });
+        await init(false, true);
       }
-      await init(false, true);
     } catch (err) {
       console.error('Drag End Sync Error:', err);
       init(false, true);
@@ -210,10 +214,13 @@ export default function PipelineScreen() {
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Excluir', style: 'destructive', onPress: async () => {
           try {
+            setActionLoading(true);
             await api.delete(`/api/rep/pipeline-boards/estagios/${id}`);
             await init(false, true);
           } catch (err) {
             Alert.alert('Erro', 'Não foi possível excluir.');
+          } finally {
+            setActionLoading(false);
           }
       }}
     ]);
@@ -223,8 +230,15 @@ export default function PipelineScreen() {
     Alert.alert('Excluir Funil', 'Tem certeza?', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Excluir', style: 'destructive', onPress: async () => {
-          await api.delete(`/api/rep/pipelines/${id}`);
-          init();
+          try {
+            setActionLoading(true);
+            await api.delete(`/api/rep/pipelines/${id}`);
+            await init();
+          } catch (err) {
+            Alert.alert('Erro', 'Não foi possível excluir o funil.');
+          } finally {
+            setActionLoading(false);
+          }
       }}
     ]);
   };
@@ -239,14 +253,14 @@ export default function PipelineScreen() {
       async (index) => {
         if (index < options.length - 1) {
           const newStage = board.estagios.sort((a,b)=>a.ordem-b.ordem)[index];
-          setKanbanActionLoading(true);
+          setActionLoading(true);
           try {
             await api.put(`/api/rep/pipeline-cards/${card.id}`, { estagioId: newStage.id });
             if (selectedPipeline) await fetchKanbanData(selectedPipeline.id);
           } catch (err) {
             Alert.alert('Erro', 'Não foi possível mover o card.');
           } finally {
-            setKanbanActionLoading(false);
+            setActionLoading(false);
           }
         }
       }
@@ -257,14 +271,14 @@ export default function PipelineScreen() {
     Alert.alert('Remover do Funil', 'Atenção: Este cliente será removido apenas deste funil de vendas. Continuar?', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Remover', style: 'destructive', onPress: async () => {
-          setKanbanActionLoading(true);
+          setActionLoading(true);
           try {
             await api.delete(`/api/rep/pipeline-cards/${id}`);
             if (selectedPipeline) await fetchKanbanData(selectedPipeline.id);
           } catch (err) {
             Alert.alert('Erro', 'Não foi possível remover o card.');
           } finally {
-            setKanbanActionLoading(false);
+            setActionLoading(false);
           }
       }}
     ]);
@@ -410,11 +424,20 @@ export default function PipelineScreen() {
         kanbanCards={kanbanCards}
         moveCard={moveCard}
         deleteCard={deleteCard}
-        kanbanActionLoading={kanbanActionLoading}
+        kanbanActionLoading={actionLoading}
         THEME={THEME}
         isDark={isDark}
         insets={insets}
       />
+      
+      {actionLoading && (
+        <View style={styles.globalLoader}>
+          <View style={[styles.loaderBox, { backgroundColor: isDark ? 'rgba(44,44,46,0.8)' : 'rgba(255,255,255,0.9)' }]}>
+            <ActivityIndicator color={THEME.accent} size="large" />
+            <Text style={[styles.loaderText, { color: THEME.text }]}>Sincronizando...</Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -441,4 +464,27 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginLeft: 10
   },
+  globalLoader: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999
+  },
+  loaderBox: {
+    padding: 30,
+    borderRadius: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 5
+  },
+  loaderText: {
+    marginTop: 15,
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: -0.3
+  }
 });

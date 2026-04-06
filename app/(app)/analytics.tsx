@@ -8,13 +8,17 @@ import {
   useColorScheme, 
   ActivityIndicator,
   Dimensions,
-  RefreshControl
+  RefreshControl,
+  Modal,
+  TextInput,
+  FlatList
 } from 'react-native';
 import { Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FontAwesome } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LineChart } from 'react-native-chart-kit';
+import { Ionicons } from '@expo/vector-icons';
 import api from '../../api/api';
 
 const { width } = Dimensions.get('window');
@@ -50,6 +54,8 @@ export default function AnalyticsScreen() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [colecoes, setColecoes] = useState<Colecao[]>([]);
   const [selectedColecao, setSelectedColecao] = useState<string | null>(null);
+  const [colModalVisible, setColModalVisible] = useState(false);
+  const [colSearch, setColSearch] = useState('');
   const [groupBy, setGroupBy] = useState<'day' | 'week' | 'month'>('month');
   
   const [prodSort, setProdSort] = useState<'valor' | 'quantidade'>('valor');
@@ -58,16 +64,16 @@ export default function AnalyticsScreen() {
   const [citySort, setCitySort] = useState<'valor' | 'quantidade'>('valor');
 
   const THEME = {
-    bg: isDark ? '#000000' : '#F2F2F7',
-    card: isDark ? '#1C1C1E' : '#FFFFFF',
-    text: isDark ? '#FFFFFF' : '#000000',
-    secondary: isDark ? '#8E8E93' : '#636366',
-    border: isDark ? '#38383A' : '#C6C6C8',
-    accent: '#0A84FF',
-    green: '#34C759',
-    orange: '#FF9500',
-    purple: '#AF52DE',
-    separator: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+    bg: isDark ? '#1C252E' : '#F2F2F7',
+    card: isDark ? '#2C3641' : '#FFFFFF',
+    text: isDark ? '#FFFFFF' : '#1C252E',
+    secondary: isDark ? '#8E9AA9' : '#636366',
+    border: isDark ? '#3D4956' : '#C6C6C8',
+    accent: '#F9B252',
+    green: '#32D74B',
+    orange: '#F9B252',
+    purple: '#F9B252',
+    separator: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
   };
 
   const fetchData = async (isRefresh = false) => {
@@ -200,23 +206,21 @@ export default function AnalyticsScreen() {
 
           <View style={styles.filterArea}>
             <SectionHeader title="Filtro de Coleção" />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.colScrollContent}>
-              <TouchableOpacity 
-                style={[styles.colChip, !selectedColecao && { backgroundColor: THEME.accent }]}
-                onPress={() => setSelectedColecao(null)}
-              >
-                <Text style={[styles.colChipText, { color: '#FFF' }]}>Todas</Text>
-              </TouchableOpacity>
-              {(colecoes && Array.isArray(colecoes) ? colecoes : []).map(c => (
-                <TouchableOpacity 
-                  key={c.idExterno}
-                  style={[styles.colChip, selectedColecao === c.idExterno && { backgroundColor: THEME.accent }]}
-                  onPress={() => setSelectedColecao(c.idExterno)}
-                >
-                  <Text style={[styles.colChipText, { color: '#FFF' }]}>{c.nome}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+            <TouchableOpacity 
+              style={[styles.pickerTrigger, { backgroundColor: THEME.card, borderColor: THEME.border }]}
+              onPress={() => setColModalVisible(true)}
+              activeOpacity={0.7}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Ionicons name="filter-circle-outline" size={22} color={THEME.accent} style={{ marginRight: 12 }} />
+                  <Text style={[styles.pickerValue, { color: THEME.text }]} numberOfLines={1}>
+                    {selectedColecao ? colecoes.find(c => c.idExterno === selectedColecao)?.nome : 'Todas as Coleções'}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-down" size={16} color={THEME.secondary} />
+              </View>
+            </TouchableOpacity>
           </View>
 
           <SectionHeader title="Resumo Comercial" />
@@ -255,18 +259,18 @@ export default function AnalyticsScreen() {
                   style={[styles.segmentBtn, groupBy === t && (isDark ? { backgroundColor: '#636366' } : styles.segmentBtnActive)]}
                   onPress={() => setGroupBy(t)}
                  >
-                   <Text style={[styles.segmentTextSmall, { color: groupBy === t ? THEME.text : THEME.secondary }]}>
+                   <Text style={[styles.segmentTextSmall, { color: groupBy === t ? '#FFFFFF' : THEME.secondary }]}>
                      {t === 'day' ? 'Dia' : t === 'week' ? 'Sem' : 'Mês'}
                    </Text>
                  </TouchableOpacity>
                ))}
             </View>
           </View>
-          <View style={[styles.insetCard, { backgroundColor: THEME.card, padding: 10 }]}>
+          <View style={[styles.insetCard, { backgroundColor: THEME.card, padding: 10, paddingBottom: groupBy === 'month' ? 10 : 20 }]}>
             <LineChart
               data={chartData}
               width={width - 50}
-              height={200}
+              height={groupBy === 'month' ? 200 : 240}
               withHorizontalLines={false}
               withVerticalLines={false}
               verticalLabelRotation={groupBy === 'month' ? 0 : 45}
@@ -289,11 +293,11 @@ export default function AnalyticsScreen() {
           <View style={styles.sectionHeaderRow}>
             <SectionHeader title="Top Produtos" />
             <View style={[styles.toggleRow, { backgroundColor: isDark ? '#1C1C1E' : 'rgba(118, 118, 128, 0.12)' }]}>
-              <TouchableOpacity onPress={() => setProdSort('valor')} style={[styles.toggleBtn, prodSort === 'valor' && (isDark ? { backgroundColor: '#636366' } : styles.toggleBtnActive)]}>
-                <Text style={[styles.toggleText, { color: prodSort === 'valor' ? THEME.text : THEME.secondary }]}>R$</Text>
+              <TouchableOpacity onPress={() => setProdSort('valor')} style={[styles.toggleBtn, prodSort === 'valor' && styles.toggleBtnActive]}>
+                <Text style={[styles.toggleText, { color: prodSort === 'valor' ? '#FFFFFF' : THEME.secondary }]}>R$</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setProdSort('quantidade')} style={[styles.toggleBtn, prodSort === 'quantidade' && (isDark ? { backgroundColor: '#636366' } : styles.toggleBtnActive)]}>
-                <Text style={[styles.toggleText, { color: prodSort === 'quantidade' ? THEME.text : THEME.secondary }]}>un.</Text>
+              <TouchableOpacity onPress={() => setProdSort('quantidade')} style={[styles.toggleBtn, prodSort === 'quantidade' && styles.toggleBtnActive]}>
+                <Text style={[styles.toggleText, { color: prodSort === 'quantidade' ? '#FFFFFF' : THEME.secondary }]}>un.</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -316,11 +320,11 @@ export default function AnalyticsScreen() {
           <View style={styles.sectionHeaderRow}>
             <SectionHeader title="Top Categorias" />
             <View style={[styles.toggleRow, { backgroundColor: isDark ? '#1C1C1E' : 'rgba(118, 118, 128, 0.12)' }]}>
-              <TouchableOpacity onPress={() => setCatSort('valor')} style={[styles.toggleBtn, catSort === 'valor' && (isDark ? { backgroundColor: '#636366' } : styles.toggleBtnActive)]}>
-                <Text style={[styles.toggleText, { color: catSort === 'valor' ? THEME.text : THEME.secondary }]}>R$</Text>
+              <TouchableOpacity onPress={() => setCatSort('valor')} style={[styles.toggleBtn, catSort === 'valor' && styles.toggleBtnActive]}>
+                <Text style={[styles.toggleText, { color: catSort === 'valor' ? '#FFFFFF' : THEME.secondary }]}>R$</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setCatSort('quantidade')} style={[styles.toggleBtn, catSort === 'quantidade' && (isDark ? { backgroundColor: '#636366' } : styles.toggleBtnActive)]}>
-                <Text style={[styles.toggleText, { color: catSort === 'quantidade' ? THEME.text : THEME.secondary }]}>un.</Text>
+              <TouchableOpacity onPress={() => setCatSort('quantidade')} style={[styles.toggleBtn, catSort === 'quantidade' && styles.toggleBtnActive]}>
+                <Text style={[styles.toggleText, { color: catSort === 'quantidade' ? '#FFFFFF' : THEME.secondary }]}>un.</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -342,11 +346,11 @@ export default function AnalyticsScreen() {
           <View style={styles.sectionHeaderRow}>
             <SectionHeader title="Top Clientes" />
             <View style={[styles.toggleRow, { backgroundColor: isDark ? '#1C1C1E' : 'rgba(118, 118, 128, 0.12)' }]}>
-              <TouchableOpacity onPress={() => setCliSort('valor')} style={[styles.toggleBtn, cliSort === 'valor' && (isDark ? { backgroundColor: '#636366' } : styles.toggleBtnActive)]}>
-                <Text style={[styles.toggleText, { color: cliSort === 'valor' ? THEME.text : THEME.secondary }]}>R$</Text>
+              <TouchableOpacity onPress={() => setCliSort('valor')} style={[styles.toggleBtn, cliSort === 'valor' && styles.toggleBtnActive]}>
+                <Text style={[styles.toggleText, { color: cliSort === 'valor' ? '#FFFFFF' : THEME.secondary }]}>R$</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setCliSort('quantidade')} style={[styles.toggleBtn, cliSort === 'quantidade' && (isDark ? { backgroundColor: '#636366' } : styles.toggleBtnActive)]}>
-                <Text style={[styles.toggleText, { color: cliSort === 'quantidade' ? THEME.text : THEME.secondary }]}>un.</Text>
+              <TouchableOpacity onPress={() => setCliSort('quantidade')} style={[styles.toggleBtn, cliSort === 'quantidade' && styles.toggleBtnActive]}>
+                <Text style={[styles.toggleText, { color: cliSort === 'quantidade' ? '#FFFFFF' : THEME.secondary }]}>un.</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -368,11 +372,11 @@ export default function AnalyticsScreen() {
           <View style={styles.sectionHeaderRow}>
             <SectionHeader title="Top Cidades" />
             <View style={[styles.toggleRow, { backgroundColor: isDark ? '#1C1C1E' : 'rgba(118, 118, 128, 0.12)' }]}>
-              <TouchableOpacity onPress={() => setCitySort('valor')} style={[styles.toggleBtn, citySort === 'valor' && (isDark ? { backgroundColor: '#636366' } : styles.toggleBtnActive)]}>
-                <Text style={[styles.toggleText, { color: citySort === 'valor' ? THEME.text : THEME.secondary }]}>R$</Text>
+              <TouchableOpacity onPress={() => setCitySort('valor')} style={[styles.toggleBtn, citySort === 'valor' && styles.toggleBtnActive]}>
+                <Text style={[styles.toggleText, { color: citySort === 'valor' ? '#FFFFFF' : THEME.secondary }]}>R$</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setCitySort('quantidade')} style={[styles.toggleBtn, citySort === 'quantidade' && (isDark ? { backgroundColor: '#636366' } : styles.toggleBtnActive)]}>
-                <Text style={[styles.toggleText, { color: citySort === 'quantidade' ? THEME.text : THEME.secondary }]}>un.</Text>
+              <TouchableOpacity onPress={() => setCitySort('quantidade')} style={[styles.toggleBtn, citySort === 'quantidade' && styles.toggleBtnActive]}>
+                <Text style={[styles.toggleText, { color: citySort === 'quantidade' ? '#FFFFFF' : THEME.secondary }]}>un.</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -393,6 +397,53 @@ export default function AnalyticsScreen() {
 
         </ScrollView>
       )}
+
+      <Modal visible={colModalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setColModalVisible(false)}>
+        <View style={[styles.modalBase, { backgroundColor: THEME.bg }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: THEME.border }]}>
+            <TouchableOpacity onPress={() => setColModalVisible(false)} style={styles.modalCancel}>
+              <Text style={{ color: THEME.accent, fontSize: 17 }}>Fechar</Text>
+            </TouchableOpacity>
+            <Text style={[styles.modalTitle, { color: THEME.text }]}>Coleção</Text>
+            <View style={{ width: 80 }} />
+          </View>
+
+          <View style={styles.modalSearchArea}>
+            <View style={[styles.modalSearchBox, { backgroundColor: isDark ? '#2C3641' : 'rgba(118, 118, 128, 0.12)' }]}>
+              <Ionicons name="search" size={18} color={THEME.secondary} style={{ marginRight: 10 }} />
+              <TextInput
+                style={[styles.modalSearchInput, { color: THEME.text }]}
+                placeholder="Buscar por nome..."
+                placeholderTextColor={THEME.secondary}
+                value={colSearch}
+                onChangeText={setColSearch}
+                autoCorrect={false}
+              />
+            </View>
+          </View>
+
+          <FlatList
+            data={[{ idExterno: null, nome: 'Todas as Coleções' }, ...colecoes].filter(c => (c.nome || '').toLowerCase().includes(colSearch.toLowerCase()))}
+            keyExtractor={item => item.idExterno || 'all'}
+            contentContainerStyle={styles.modalListContent}
+            renderItem={({ item }) => (
+              <TouchableOpacity 
+                style={[styles.modalItem, { borderBottomColor: THEME.border }]}
+                onPress={() => {
+                  setSelectedColecao(item.idExterno);
+                  setColModalVisible(false);
+                  setColSearch('');
+                }}
+              >
+                <Text style={[styles.modalItemText, { color: THEME.text }, item.idExterno === selectedColecao && { color: THEME.accent, fontWeight: '700' }]}>
+                  {item.nome}
+                </Text>
+                {item.idExterno === selectedColecao && <Ionicons name="checkmark-circle" size={22} color={THEME.accent} />}
+              </TouchableOpacity>
+            )}
+          />
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -413,14 +464,43 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   filterArea: { marginBottom: 8 },
-  colScrollContent: { paddingVertical: 8 },
-  colChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    marginRight: 8,
+  pickerTrigger: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 0.5,
+    marginTop: 8,
   },
+  pickerValue: { fontSize: 16, fontWeight: '500', flex: 1 },
+  modalBase: { flex: 1 },
+  modalHeader: { 
+    height: 56, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    paddingHorizontal: 16, 
+    borderBottomWidth: 0.5 
+  },
+  modalTitle: { fontSize: 17, fontWeight: '700' },
+  modalCancel: { width: 80 },
+  modalSearchArea: { padding: 16, borderBottomWidth: 0.5, borderBottomColor: 'rgba(0,0,0,0.05)' },
+  modalSearchBox: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    paddingHorizontal: 12, 
+    height: 40, 
+    borderRadius: 10 
+  },
+  modalSearchInput: { flex: 1, fontSize: 16, height: '100%' },
+  modalListContent: { paddingBottom: 50 },
+  modalItem: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    padding: 16, 
+    marginHorizontal: 16,
+    borderBottomWidth: 0.5 
+  },
+  modalItemText: { fontSize: 16 },
   colChipText: { fontSize: 13, fontWeight: '600' },
   segmentedControl: {
     flexDirection: 'row',
@@ -435,7 +515,7 @@ const styles = StyleSheet.create({
     borderRadius: 7,
   },
   segmentBtnActive: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9B252',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -528,7 +608,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   toggleBtnActive: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9B252',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,

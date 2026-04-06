@@ -57,14 +57,14 @@ export default function DashboardScreen() {
     const [tooltipData, setTooltipData] = useState<{ value: number, index: number, x: number, y: number } | null>(null);
 
     const THEME = {
-        bg: isDark ? '#000000' : '#F2F2F7',
-        card: isDark ? '#1C1C1E' : '#FFFFFF',
-        text: isDark ? '#FFFFFF' : '#000000',
-        secondaryText: isDark ? '#8E8E93' : '#636366',
-        navAction: isDark ? '#1C1C1E' : '#E5E5EA',
-        navText: isDark ? '#0A84FF' : '#007AFF',
-        separator: isDark ? '#38383A' : '#C6C6C8',
-        accent: '#6C5CE7',
+        bg: isDark ? '#1C252E' : '#F2F2F7',
+        card: isDark ? '#2C3641' : '#FFFFFF',
+        text: isDark ? '#FFFFFF' : '#1C252E',
+        secondaryText: isDark ? '#8E9AA9' : '#636366',
+        navAction: isDark ? '#2C3641' : '#E5E5EA',
+        navText: '#F9B252',
+        separator: isDark ? '#3D4956' : '#C6C6C8',
+        accent: '#F9B252',
         positive: '#32D74B',
         danger: '#FF453A',
     };
@@ -173,9 +173,20 @@ export default function DashboardScreen() {
         const radius = (size - strokeWidth) / 2;
         const circumference = Math.PI * radius;
 
-        // Main progress towards GOLD
-        const overallProgress = Math.min((totalUnits / ouro) * 100, 100);
-        const strokeDashoffset = circumference - (overallProgress / 100) * circumference;
+        // Determine Next Level and Progress
+        let nextLevelValue = bronze;
+        let nextLevelName = 'Bronze';
+        
+        if (totalUnits >= prata) {
+            nextLevelValue = ouro;
+            nextLevelName = 'Ouro';
+        } else if (totalUnits >= bronze) {
+            nextLevelValue = prata;
+            nextLevelName = 'Prata';
+        }
+        
+        const nextLevelProgress = Math.min((totalUnits / nextLevelValue) * 100, 100);
+        const strokeDashoffset = circumference - (nextLevelProgress / 100) * circumference;
 
         // Calc percentages for each level
         const bronzePct = Math.min(Math.round((totalUnits / bronze) * 100), 100);
@@ -218,6 +229,9 @@ export default function DashboardScreen() {
                     <View style={styles.gaugeContent}>
                         <Text style={[styles.gaugeUnits, { color: THEME.text }]}>{totalUnits.toLocaleString('pt-BR')}</Text>
                         <Text style={[styles.gaugeSublabel, { color: THEME.secondaryText }]}>unidades vendidas</Text>
+                        <View style={[styles.rumoContainer, { backgroundColor: THEME.navText + '15' }]}>
+                           <Text style={[styles.rumoAo, { color: THEME.navText }]}>rumo ao {nextLevelName}</Text>
+                        </View>
                     </View>
                 </View>
 
@@ -641,6 +655,18 @@ const styles = StyleSheet.create({
         marginTop: -2,
         opacity: 0.6,
         textTransform: 'uppercase',
+    },
+    rumoContainer: {
+        marginTop: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 8,
+    },
+    rumoAo: {
+        fontSize: 11,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
     },
     gaugeMetaName: {
         fontSize: 11,

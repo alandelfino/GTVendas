@@ -80,17 +80,17 @@ export default function OrdersScreen() {
   const [detailLoading, setDetailLoading] = useState(false);
 
   const THEME = {
-    bg: isDark ? '#000000' : '#F2F2F7',
-    card: isDark ? '#1C1C1E' : '#FFFFFF',
-    text: isDark ? '#FFFFFF' : '#000000',
-    secondary: isDark ? '#8E8E93' : '#636366',
-    border: isDark ? '#2C2C2E' : '#E5E5EA',
-    accent: '#0A84FF',
+    bg: isDark ? '#1C252E' : '#F2F2F7',
+    card: isDark ? '#2C3641' : '#FFFFFF',
+    text: isDark ? '#FFFFFF' : '#1C252E',
+    secondary: isDark ? '#8E9AA9' : '#636366',
+    border: isDark ? '#3D4956' : '#E5E5EA',
+    accent: '#F9B252',
     green: '#34C759',
     red: '#FF3B30',
-    orange: '#FF9500',
-    separator: isDark ? '#38383A' : '#C6C6C8',
-    itemBg: isDark ? '#1C1C1E' : '#FFFFFF',
+    orange: '#F9B252',
+    separator: isDark ? '#3D4956' : '#C6C6C8',
+    itemBg: isDark ? '#2C3641' : '#FFFFFF',
   };
 
   const fetchOrders = async (isRefresh = false) => {

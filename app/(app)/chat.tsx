@@ -3,6 +3,7 @@ import { RecordingOptions, requestRecordingPermissionsAsync, setAudioModeAsync, 
 import * as FileSystem from 'expo-file-system/legacy';
 import { Stack, useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
+import * as Sharing from 'expo-sharing';
 import React, { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
@@ -22,13 +23,20 @@ import {
     TouchableOpacity,
     useColorScheme,
     View,
-    Modal
+    Modal,
+    ActionSheetIOS,
+    Platform,
+    Vibration,
+    Alert
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import { Swipeable } from 'react-native-gesture-handler';
 import { useIsFocused } from '@react-navigation/native';
 import Markdown from 'react-native-markdown-display';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { BlurView } from 'expo-blur';
+import Svg, { Circle } from 'react-native-svg';
 import api from '../../api/api';
 import { useAuth } from '../../context/AuthContext';
 
@@ -38,6 +46,7 @@ interface Message {
   id: number | string;
   role: 'user' | 'assistant';
   content: string;
+  events?: any[];
   type?: 'text' | 'pdf' | 'map_embed' | 'html_widget';
   data?: any;
   audioUri?: string;
@@ -63,15 +72,15 @@ export default function ChatScreen() {
   const isDark = colorScheme === 'dark';
 
   const THEME = {
-    primary: '#007AFF',
-    background: isDark ? '#000000' : '#F2F2F7',
-    assistantBubble: isDark ? '#1C1C1E' : '#FFFFFF',
-    userBubble: '#007AFF',
-    textMain: isDark ? '#FFFFFF' : '#000000',
-    textSecondary: isDark ? '#8E8E93' : '#8E8E93',
-    inputBg: isDark ? '#1C1C1E' : '#FFFFFF',
-    border: isDark ? '#38383A' : '#E5E5EA',
-    danger: '#FF453A', // iOS SystemRed (Vibrant for Dark)
+    primary: '#F9B252',
+    background: isDark ? '#1C252E' : '#F2F2F7',
+    assistantBubble: isDark ? '#2C3641' : '#FFFFFF',
+    userBubble: '#F9B252',
+    textMain: isDark ? '#FFFFFF' : '#1C252E',
+    textSecondary: isDark ? '#8E9AA9' : '#8E8E93',
+    inputBg: isDark ? '#2C3641' : '#FFFFFF',
+    border: isDark ? '#3D4956' : '#E5E5EA',
+    danger: '#FF453A',
   };
 
   const userMarkdownStyles = {
@@ -90,11 +99,11 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
-  const [streamPhase, setStreamPhase] = useState<'idle' | 'waiting' | 'streaming'>('idle');
   const [streamingText, setStreamingText] = useState('');
-  const [pendingTool, setPendingTool] = useState<string | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isEditingSessions, setIsEditingSessions] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [searchSession, setSearchSession] = useState('');
   
   // Audio Configuration (Global Engine)
   const recorder = useAudioRecorder({
@@ -130,7 +139,8 @@ export default function ChatScreen() {
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   const flatListRef = useRef<FlatList>(null);
-  const wsRef = useRef<WebSocket | null>(null);
+  const swipeableRefs = useRef<Map<string, Swipeable>>(new Map());
+  const openRowKey = useRef<string | null>(null);
 
   const configureAudioMode = async (forRecording: boolean) => {
     try {
@@ -143,6 +153,54 @@ export default function ChatScreen() {
       console.error('Error configuring audio mode:', e);
     }
   };
+
+  const closeOpenRow = () => {
+    if (openRowKey.current !== null) {
+      swipeableRefs.current.get(openRowKey.current)?.close();
+      openRowKey.current = null;
+    }
+  };
+
+  const handleOpenReport = async (reportId: string, titulo: string) => {
+    setActionLoading(true);
+    try {
+      // Step 1: Gerar token de acesso público via endpoint de compartilhamento
+      const shareResponse = await api.post(`/api/rep/chat/reports/${reportId}/share`);
+      
+      // O backend retorna "token" no JSON conforme log
+      const shareToken = shareResponse.data.token || shareResponse.data.shareToken;
+      
+      if (!shareToken) throw new Error('Falha ao gerar token de compartilhamento');
+
+      // Step 2: Abrir a URL pública no WebView (sem necessidade de headers auth)
+      const publicUrl = `${api.defaults.baseURL}/api/public/report/${shareToken}`;
+      
+      router.push({
+        pathname: '/(app)/report-view',
+        params: { 
+          url: publicUrl,
+          title: titulo || 'Relatório'
+        }
+      });
+    } catch (error: any) {
+      console.error('Error generating report share token:', error?.response?.data || error.message);
+      Alert.alert('Erro', 'Não foi possível autorizar a visualização deste relatório.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const renderSessionRightActions = (id: number) => (
+    <View style={styles.sessionRightActions}>
+      <TouchableOpacity 
+        style={[styles.sessionDeleteBtn, { backgroundColor: THEME.danger }]}
+        onPress={() => { closeOpenRow(); deleteSession(id); }}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="trash-outline" size={22} color="#FFF" />
+      </TouchableOpacity>
+    </View>
+  );
 
   useEffect(() => {
     loadSessions();
@@ -183,7 +241,7 @@ export default function ChatScreen() {
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [messages.length, activeSessionId, streamPhase === 'streaming']);
+  }, [messages.length, activeSessionId]);
 
   const loadSessions = async () => {
     setLoading(true);
@@ -193,10 +251,8 @@ export default function ChatScreen() {
       console.log(`--- [CHAT DEBUG] Sessões Recebidas: ${response.data.length} ---`);
       setSessions(response.data);
       if (response.data.length > 0 && !activeSessionId) {
-        console.log(`--- [CHAT DEBUG] Ativando Sessão Inicial: ${response.data[0].id} ---`);
         setActiveSessionId(response.data[0].id);
       } else if (response.data.length === 0) {
-        console.log('--- [CHAT DEBUG] Nenhuma sessão encontrada, criando nova ---');
         createNewSession();
       }
     } catch (error) {
@@ -208,7 +264,7 @@ export default function ChatScreen() {
 
   const createNewSession = async () => {
     try {
-      const response = await api.post('/api/rep/chat/sessions');
+      const response = await api.post('/api/rep/chat/sessions', {});
       const newSession = response.data;
       setSessions([newSession, ...sessions]);
       setActiveSessionId(newSession.id);
@@ -219,6 +275,7 @@ export default function ChatScreen() {
   };
 
   const deleteSession = async (id: number) => {
+    setActionLoading(true);
     try {
       await api.delete(`/api/rep/chat/sessions/${id}`);
       setSessions(prev => prev.filter(s => s.id !== id));
@@ -228,6 +285,8 @@ export default function ChatScreen() {
       }
     } catch (e) {
       console.error('Delete session error:', e);
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -238,176 +297,86 @@ export default function ChatScreen() {
   };
 
   const loadMessages = async (sessionId: number) => {
-    setLoading(true);
     try {
-      console.log(`--- [CHAT DEBUG] Carregando Mensagens para Sessão: ${sessionId} ---`);
       const response = await api.get(`/api/rep/chat/sessions/${sessionId}/messages`);
-      const formattedMessages = response.data.map((m: any) => ({
+      
+      console.log(`\n--- [DEBUG PROFUNDO SESSÃO ${sessionId}] ---`);
+      console.log('RESPOSTA COMPLETA (3 Primeiras):', JSON.stringify(response.data.slice(0, 3), null, 2));
+      console.log('--------------------------------------------\n');
+
+      const history: Message[] = response.data.map((m: any) => ({
         ...m,
-        id: m.id,
-        role: m.role,
-        content: m.content,
-        isVoice: m.hasAudio || (m.role === 'assistant' && m.hasTts),
-        createdAt: m.criadoEm || m.createdAt || new Date().toISOString(),
+        id: m.id.toString(),
+        createdAt: m.criadoEm || new Date().toISOString(),
       }));
-      console.log(`--- [CHAT DEBUG] Sincronizando Mensagens: ${formattedMessages.length} do Banco ---`);
-      setMessages(formattedMessages);
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 200);
-    } catch (error) {
-      console.error('--- [CHAT DEBUG ERROR] Erro ao carregar mensagens:', error);
-    } finally {
-      setLoading(false);
+      setMessages(history);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    } catch (err) {
+      console.error('Error loading messages:', err);
     }
   };
 
-  const sendMessage = async (textOverride?: string, fromVoice: boolean = false, voiceMessageId?: number) => {
-    const textToSend = textOverride || inputText;
-    if (!textToSend.trim() || !activeSessionId || streamPhase !== 'idle') return;
+  const sendMessage = async (text: string, skipBubble = false) => {
+    if (!text.trim() || !activeSessionId) return;
 
-    if (globalPlayer && globalPlayer.playing) {
-      try {
-        globalPlayer.pause();
-      } catch (e) {}
-    }
-
-    if (!fromVoice) {
-      const userMessage: Message = {
+    const userMessageText = text.trim();
+    if (!skipBubble) {
+      const userMsg = {
         id: `user-${Date.now()}`,
-        role: 'user',
-        content: textToSend.trim(),
-        isVoice: false,
-        createdAt: new Date().toISOString()
+        role: 'user' as const,
+        content: userMessageText,
+        createdAt: new Date().toISOString(),
       };
-      setMessages(prev => [...prev, userMessage]);
+      setMessages(prev => [...prev, userMsg]);
     }
     
     setInputText('');
-    setStreamPhase('waiting');
-    setPendingTool(null);
-
-    let accumulatedText = '';
+    setLoading(true);
+    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
 
     try {
-      const token = await SecureStore.getItemAsync('accessToken');
-      const baseUrl = api.defaults.baseURL || '';
-      const streamUrl = `${baseUrl.replace(/\/$/, '')}/api/mobile/chat/stream`;
+      // POST síncrono v2.0
+      const response = await api.post('/api/mobile/chat/message', {
+        content: userMessageText,
+        sessionId: activeSessionId
+      });
 
-      console.log('--- [SSE DEBUG] Iniciando via XHR ---');
+      const { messageId, content, events } = response.data;
 
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', streamUrl);
-      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      xhr.setRequestHeader('Content-Type', 'application/json');
-
-      let lastIndex = 0;
-
-      xhr.onreadystatechange = () => {
-        // Status 3 = LOADING (dados chegando), Status 4 = DONE
-        if (xhr.readyState === 3 || xhr.readyState === 4) {
-          const responseText = xhr.responseText;
-          const newChunk = responseText.substring(lastIndex);
-          lastIndex = responseText.length;
-
-          // Eventos SSE são separados por \n\n
-          const parts = newChunk.split('\n\n');
-          
-          for (const part of parts) {
-            const line = part.trim();
-            if (!line || line.startsWith(':')) continue;
-
-            if (line.startsWith('data: ')) {
-              const json = line.slice(6);
-              try {
-                const data = JSON.parse(json);
-                console.log(`--- [SSE DEBUG] Evento: ${data.type} ---`);
-
-                switch (data.type) {
-                  case 'tool_call':
-                    setPendingTool(data.tool);
-                    break;
-
-                  case 'chunk':
-                    setStreamPhase('streaming');
-                    setPendingTool(null);
-                    accumulatedText += data.text;
-                    
-                    setMessages(prev => {
-                      const newMsgs = [...prev];
-                      const lastMsg = newMsgs[newMsgs.length - 1];
-                      if (lastMsg && lastMsg.id === 'streaming-bot') {
-                        newMsgs[newMsgs.length - 1] = { ...lastMsg, content: accumulatedText };
-                        return newMsgs;
-                      } else {
-                        return [...newMsgs, {
-                          id: 'streaming-bot',
-                          role: 'assistant',
-                          content: accumulatedText,
-                          isVoice: false,
-                          createdAt: new Date().toISOString()
-                        }];
-                      }
-                    });
-                    break;
-
-                  case 'pdf':
-                  case 'map_embed':
-                  case 'html_widget':
-                    setMessages(prev => [...prev.filter(m => m.id !== 'streaming-bot'), {
-                      id: `asset-${Date.now()}-${Math.random()}`,
-                      role: 'assistant',
-                      content: '',
-                      type: data.type,
-                      data: data,
-                      createdAt: new Date().toISOString()
-                    }]);
-                    break;
-
-                  case 'done':
-                    console.log('--- [SSE DEBUG] DONE Recebido ---');
-                    setMessages(prev => {
-                      const newMsgs = [...prev];
-                      const streamIdx = newMsgs.findIndex(m => m.id === 'streaming-bot');
-                      if (streamIdx > -1) {
-                        newMsgs[streamIdx] = { 
-                          ...newMsgs[streamIdx], 
-                          id: data.messageId || `bot-${Date.now()}`,
-                          content: accumulatedText.trim() || newMsgs[streamIdx].content 
-                        };
-                        return newMsgs;
-                      }
-                      return newMsgs;
-                    });
-                    setStreamPhase('idle');
-                    setTimeout(() => loadSessions(), 500);
-                    break;
-
-                  case 'error':
-                    console.error('--- [SSE DEBUG ERROR] ---', data.message);
-                    setStreamPhase('idle');
-                    break;
-                }
-              } catch (e) {
-                // Fragmento JSON incompleto, esperar o próximo chunk
-              }
-            }
+      // Log dos links de relatórios gerados
+      if (events && events.length > 0) {
+        events.forEach((event: any) => {
+          if (event.type === 'pdf' || event.type === 'html_widget') {
+            const reportUrl = `${api.defaults.baseURL}/api/rep/chat/reports/${event.reportId || event.widgetId}`;
+            console.log(`\n--- [CHAT REPORT LINK] ---\n${reportUrl}\n-------------------------\n`);
           }
-        }
+        });
+      }
+
+      // Adicionar resposta do assistente ao estado
+      const assistantMsg = {
+        id: messageId.toString(),
+        role: 'assistant' as const,
+        content: content,
+        events: events || [], // Guardar eventos para renderizar botões
+        createdAt: new Date().toISOString()
       };
 
-      xhr.onerror = (err) => {
-        console.error('XHR Error:', err);
-        setStreamPhase('idle');
-      };
+      setMessages(prev => [...prev, assistantMsg]);
+      
+      // Se a sessão ainda não tinha título, recarregar a lista lateral 
+      // (pois o backend gera o título após a primeira mensagem)
+      if (sessions.find(s => s.id === activeSessionId)?.titulo === null) {
+        const sessRes = await api.get('/api/rep/chat/sessions');
+        setSessions(sessRes.data);
+      }
 
-      xhr.send(JSON.stringify({ 
-        content: textToSend.trim(), 
-        sessionId: activeSessionId,
-        voiceMessageId: voiceMessageId 
-      }));
-
-    } catch (error) {
-      console.error('Error in sendMessage flow:', error);
-      setStreamPhase('idle');
+    } catch (err: any) {
+      console.error('--- [CHAT SEND ERROR] ---', err?.response?.data || err.message);
+      Alert.alert('Erro', 'O assistente encontrou um problema ao processar sua solicitação.');
+    } finally {
+      setLoading(false);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     }
   };
 
@@ -477,7 +446,6 @@ export default function ChatScreen() {
   };
 
   const transcribeAudio = async (uri: string) => {
-    // Adiciona o balão do usuário IMEDIATAMENTE com loader de transcrição
     const tempId = `voice-temp-${Date.now()}`;
     const initialVoiceMsg: Message = {
       id: tempId,
@@ -488,18 +456,12 @@ export default function ChatScreen() {
       createdAt: new Date().toISOString()
     };
     setMessages(prev => [...prev, initialVoiceMsg]);
-    setStreamPhase('waiting');
-    setPendingTool('whisper_stt'); // Marcador interno para saber que é transcrição
     
     try {
       const fileInfo = await FileSystem.getInfoAsync(uri);
-      if (!fileInfo.exists || (fileInfo.size && fileInfo.size < 100)) {
-        setStreamPhase('idle');
-        return;
-      }
+      if (!fileInfo.exists || (fileInfo.size && fileInfo.size < 100)) return;
 
       let token = (await SecureStore.getItemAsync('accessToken')) || '';
-      
       const baseUrl = api.defaults.baseURL || '';
       const uploadUrl = `${baseUrl.replace(/\/$/, '')}/api/rep/chat/transcribe`;
 
@@ -529,17 +491,12 @@ export default function ChatScreen() {
       if (response.status >= 200 && response.status < 300) {
         const body = JSON.parse(response.body);
         if (body.text) {
-          setVoiceMode(true);
-          setMessages(prev => prev.map(m => 
-            m.id === tempId ? { ...m, content: body.text } : m
-          ));
-          sendMessage(body.text, true, body.messageId); 
+          // Enviar para o novo flow síncrono REST v2.0
+          await sendMessage(body.text, false);
         } else {
           setMessages(prev => prev.filter(m => m.id !== tempId));
-          setStreamPhase('idle');
         }
       } else {
-        console.error('--- [TRANSCRIBE DEBUG] Servidor Erro Body:', response.body);
         throw new Error(`Servidor retornou status ${response.status}`);
       }
     } catch (error: any) {
@@ -549,38 +506,15 @@ export default function ChatScreen() {
         role: 'assistant',
         content: `Houve um erro ao processar o áudio. Tente novamente.`
       }]);
-      setStreamPhase('idle');
     }
   };
 
-  const getToolLabel = (tool: string) => {
-    const labels: any = {
-      pesquisar_clientes: 'Buscando clientes...',
-      get_resumo_vendas: 'Analisando vendas...',
-      get_clientes_sem_pedido: 'Verificando carteira...',
-      get_metas_rep: 'Consultando metas...',
-      get_pedidos_rep: 'Carregando pedidos...',
-      plan_rota_visitas: 'Planejando rota no Maps...',
-      gerar_relatorio_pdf: 'Gerando relatório PDF...',
-      exibir_relatorio_html: 'Montando dashboard...',
-      criar_pipeline: 'Criando pipeline...',
-      get_titulos_rep: 'Buscando títulos financeiros...',
-      get_mix_produtos: 'Analisando mix de produtos...',
-      whisper_stt: 'Transcrevendo áudio...',
-    };
-    return labels[tool] || 'Processando dados...';
-  };
-
   const MessageAudioPlayer = ({ message }: { message: Message }) => {
-    // Only access player status if the screen is focused to avoid SharedObject errors on unmount
     const isCurrentPlaying = isFocused && activePlayingId === message.id;
     const isPlaying = isCurrentPlaying && playerStatus.playing;
     const currentProgress = isCurrentPlaying ? (playerStatus.currentTime / (playerStatus.duration || 1)) * 100 : 0;
     const displayTime = isCurrentPlaying ? playerStatus.currentTime : 0;
     
-    // We only show duration if it's not the current playing one or if we have it
-    const duration = isCurrentPlaying ? playerStatus.duration : 0;
-
     const getAudioSource = async () => {
       if (message.audioUri) return message.audioUri;
       
@@ -686,18 +620,38 @@ export default function ChatScreen() {
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isUser = item.role === 'user';
-    
-    // Restoration of assets cards support
-    if ((item as any).type === 'pdf') return renderPdfCard((item as any).data);
-    if ((item as any).type === 'map_embed') return renderMapCard((item as any).data);
-    if ((item as any).type === 'html_widget') return renderHtmlCard((item as any).data);
 
-    const isStreaming = item.id === 'streaming-bot';
+    const handleLongPress = () => {
+      if (!item.content) return;
+      Vibration.vibrate(Platform.OS === 'ios' ? 1 : 50);
+      const options = ['Copiar', 'Cancelar'];
+      
+      if (Platform.OS === 'ios') {
+        ActionSheetIOS.showActionSheetWithOptions(
+          { options, cancelButtonIndex: 1, title: 'Opções da Mensagem' },
+          async (index) => {
+            if (index === 0) {
+              await Clipboard.setStringAsync(item.content);
+            }
+          }
+        );
+      } else {
+        Alert.alert('Opções', undefined, [
+          { text: 'Copiar Texto', onPress: async () => await Clipboard.setStringAsync(item.content) },
+          { text: 'Cancelar', style: 'cancel' }
+        ]);
+      }
+    };
 
     return (
       <View style={[styles.bubbleWrapper, isUser ? styles.userBubbleWrapper : styles.assistantBubbleWrapper]}>
         <View style={{ alignItems: isUser ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
-          <View style={[styles.messageBubble, isUser ? styles.userBubble : [styles.assistantBubble, { backgroundColor: THEME.assistantBubble }]]}>
+          <TouchableOpacity 
+            activeOpacity={0.9}
+            delayLongPress={500}
+            onLongPress={handleLongPress}
+            style={[styles.messageBubble, isUser ? styles.userBubble : [styles.assistantBubble, { backgroundColor: THEME.assistantBubble }]]}
+          >
             {isUser && item.content === 'Transcrevendo áudio...' ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <ActivityIndicator size="small" color="#FFFFFF" />
@@ -705,13 +659,76 @@ export default function ChatScreen() {
               </View>
             ) : (
               <Markdown style={isUser ? userMarkdownStyles : assistantMarkdownStyles}>
-                {item.content + (isStreaming ? ' ▌' : '')}
+                {item.content}
               </Markdown>
             )}
-            {(item.role === 'assistant' && !isStreaming) && (
+
+            {/* Eventos e Cards do Assistente */}
+            {!isUser && (item.events && item.events.length > 0 || item.type === 'pdf' || item.type === 'html_widget') && (
+              <View style={styles.eventsContainer}>
+                {/* Formato Novo: Array de eventos */}
+                {item.events?.map((event, idx) => {
+                  if (event.type === 'pdf' || event.type === 'html_widget') {
+                    return (
+                      <TouchableOpacity 
+                        key={`evt-${idx}`}
+                        style={styles.eventButton}
+                        onPress={() => handleOpenReport(event.reportId || event.widgetId, event.titulo)}
+                      >
+                        <Text style={{ fontSize: 16 }}>📊</Text>
+                        <Text style={[styles.eventButtonText, { color: THEME.textMain }]}>
+                          {event.titulo || 'Ver Relatório'}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  }
+                  if (event.type === 'map_embed') {
+                    return (
+                      <TouchableOpacity 
+                        key={`map-${idx}`}
+                        style={styles.eventButton}
+                        onPress={() => Linking.openURL(event.mapsUrl)}
+                      >
+                        <Ionicons name="map-outline" size={16} color={THEME.primary} />
+                        <Text style={[styles.eventButtonText, { color: THEME.textMain }]}>Ver no mapa</Text>
+                      </TouchableOpacity>
+                    );
+                  }
+                  if (event.type === 'tool_call') {
+                    return (
+                      <View key={`tool-${idx}`} style={styles.toolCallChip}>
+                        <Ionicons name="construct-outline" size={12} color={THEME.textSecondary} />
+                        <Text style={styles.toolCallText}>
+                          {event.tool === 'get_top_clientes' ? 'Analisando clientes...' : 'Buscando dados...'}
+                        </Text>
+                      </View>
+                    );
+                  }
+                  return null;
+                })}
+
+                {/* Formato Legado: Para mensagens de antes da atualização do servidor */}
+                {(item.type === 'pdf' || item.type === 'html_widget') && !item.events?.length && (
+                  <TouchableOpacity 
+                    style={styles.eventButton}
+                    onPress={() => {
+                      const reportId = item.data?.reportId || item.data?.widgetId || item.id;
+                      handleOpenReport(reportId, item.data?.titulo);
+                    }}
+                  >
+                    <Text style={{ fontSize: 16 }}>📊</Text>
+                    <Text style={[styles.eventButtonText, { color: THEME.textMain }]}>
+                      {item.data?.titulo || 'Ver Relatório'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            {(item.role === 'assistant') && (
               <MessageAudioPlayer message={item} />
             )}
-          </View>
+          </TouchableOpacity>
           <Text style={[styles.messageTime, { color: THEME.textSecondary }]}>
             {formatMsgTime(item.createdAt)}
           </Text>
@@ -720,46 +737,9 @@ export default function ChatScreen() {
     );
   };
 
-  const renderPdfCard = (data: any) => (
-    <View style={[styles.assetCard, { backgroundColor: THEME.assistantBubble, borderColor: THEME.border }]}>
-      <View style={styles.assetHeader}>
-        <FontAwesome name="file-pdf-o" size={20} color="#FF453A" />
-        <Text style={[styles.assetTitle, { color: THEME.textMain }]}>{data.titulo}</Text>
-      </View>
-      <View style={styles.assetActions}>
-        <Pressable style={[styles.assetButton, { backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7' }]} onPress={() => Linking.openURL(`${api.defaults.baseURL}${data.url}`)}>
-          <Text style={[styles.assetButtonText, { color: THEME.primary }]}>Visualizar</Text>
-        </Pressable>
-        <Pressable style={[styles.assetButton, { backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7' }]} onPress={() => Share.share({ url: `${api.defaults.baseURL}${data.url}` })}>
-          <FontAwesome name="share" size={14} color={THEME.primary} />
-        </Pressable>
-      </View>
-    </View>
-  );
 
-  const renderMapCard = (data: any) => (
-    <View style={[styles.assetCard, { backgroundColor: THEME.assistantBubble, borderColor: THEME.border }]}>
-      <View style={styles.assetHeader}>
-        <FontAwesome name="map-marker" size={20} color="#32D74B" />
-        <Text style={[styles.assetTitle, { color: THEME.textMain }]}>Rota Sugerida</Text>
-      </View>
-      <Pressable style={[styles.assetButton, { marginTop: 10, backgroundColor: isDark ? '#2C2C2E' : '#F2F2F7' }]} onPress={() => Linking.openURL(data.mapsUrl)}>
-        <Text style={[styles.assetButtonText, { color: THEME.primary }]}>Abrir no Apple Maps</Text>
-      </Pressable>
-    </View>
-  );
 
-  const renderHtmlCard = (data: any) => (
-    <View style={[styles.assetCard, { height: 350, backgroundColor: THEME.assistantBubble, borderColor: THEME.border }]}>
-      <Text style={[styles.assetTitle, { marginBottom: 10, color: THEME.textMain }]}>{data.titulo}</Text>
-      <WebView 
-        originWhitelist={['*']}
-        source={{ html: data.html }}
-        style={{ flex: 1, backgroundColor: 'transparent' }}
-        javaScriptEnabled={true}
-      />
-    </View>
-  );
+
 
   const handleCreateNewSession = () => {
     createNewSession();
@@ -862,13 +842,11 @@ export default function ChatScreen() {
           )}
           ListFooterComponent={() => (
             <View>
-              {streamPhase === 'waiting' && 
-               !messages.some(m => m.id === 'streaming-bot') && 
-               pendingTool !== 'whisper_stt' && (
+              {loading && (
                 <View style={styles.assistantBubbleWrapper}>
                   <View style={[styles.messageBubble, { backgroundColor: THEME.assistantBubble }, styles.loadingBubble]}>
                     <ActivityIndicator size="small" color={THEME.textSecondary} />
-                    <Text style={[styles.loadingLabel, { color: THEME.textSecondary }]}>{pendingTool ? getToolLabel(pendingTool) : 'digitando...'}</Text>
+                    <Text style={[styles.loadingLabel, { color: THEME.textSecondary }]}>O assistente está processando...</Text>
                   </View>
                 </View>
               )}
@@ -893,7 +871,7 @@ export default function ChatScreen() {
                 onChangeText={setInputText}
                 multiline
                 maxLength={500}
-                editable={streamPhase === 'idle'}
+                editable={!loading}
                 onFocus={() => {
                   setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 0);
                 }}
@@ -940,9 +918,9 @@ export default function ChatScreen() {
                 </Pressable>
               ) : (
                 <Pressable 
-                  style={[styles.sendButton, streamPhase !== 'idle' && styles.sendButtonDisabled, { backgroundColor: THEME.primary }]}
-                  onPress={() => sendMessage()}
-                  disabled={streamPhase !== 'idle'}
+                  style={[styles.sendButton, loading && styles.sendButtonDisabled, { backgroundColor: THEME.primary }]}
+                  onPress={() => sendMessage(inputText)} 
+                  disabled={loading || !inputText.trim()}
                 >
                   <FontAwesome name="arrow-up" size={16} color="#FFF" />
                 </Pressable>
@@ -962,51 +940,83 @@ export default function ChatScreen() {
           <View style={styles.modalHandle} />
           
           <View style={styles.historyHeader}>
-            <Text style={[styles.historyTitle, { color: THEME.textMain }]}>Conversas Recentes</Text>
+            <View>
+              <Text style={[styles.historyTitle, { color: THEME.textMain }]}>Histórico</Text>
+              <Text style={[styles.historySubtitle, { color: THEME.textSecondary }]}>{sessions.length} conversas salvas</Text>
+            </View>
             <TouchableOpacity 
-              onPress={() => setIsEditingSessions(!isEditingSessions)}
-              hitSlop={{ top: 15, bottom: 15, left: 20, right: 20 }}
+              onPress={() => setIsHistoryOpen(false)}
+              style={[styles.closeHistoryBtn, { backgroundColor: isDark ? '#3D4956' : '#E5E5EA' }]}
             >
-              <Text style={{ color: THEME.primary, fontSize: 17, fontWeight: '500' }}>
-                {isEditingSessions ? 'OK' : 'Editar'}
-              </Text>
+              <Ionicons name="close" size={20} color={THEME.textMain} />
             </TouchableOpacity>
           </View>
 
+          <View style={styles.historySearchWrapper}>
+            <View style={[styles.searchBox, { backgroundColor: isDark ? '#2C3641' : 'rgba(118, 118, 128, 0.12)' }]}>
+              <Ionicons name="search" size={18} color={THEME.textSecondary} style={{ marginRight: 8 }} />
+              <TextInput
+                placeholder="Pesquisar conversas..."
+                placeholderTextColor={THEME.textSecondary}
+                style={[styles.historySearchInput, { color: THEME.textMain }]}
+                value={searchSession}
+                onChangeText={setSearchSession}
+                autoCorrect={false}
+              />
+            </View>
+          </View>
+
           <FlatList
-            data={sessions}
+            data={sessions.filter(s => (s.titulo || '').toLowerCase().includes(searchSession.toLowerCase()) || s.id.toString().includes(searchSession))}
             keyExtractor={(item) => item.id.toString()}
             contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 60 }}
-            ItemSeparatorComponent={() => <View style={[styles.listSeparator, { backgroundColor: THEME.border }]} />}
             renderItem={({ item }) => (
-              <View style={[styles.sessionRow, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' }]}>
-                {isEditingSessions && (
-                  <TouchableOpacity 
-                    style={{ paddingRight: 10 }}
-                    onPress={() => deleteSession(item.id)}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <Ionicons name="remove-circle" size={22} color={THEME.danger} />
-                  </TouchableOpacity>
-                )}
+              <Swipeable
+                key={item.id}
+                ref={(ref) => {
+                  const key = `session-${item.id}`;
+                  if (ref) swipeableRefs.current.set(key, ref);
+                  else swipeableRefs.current.delete(key);
+                }}
+                renderRightActions={() => renderSessionRightActions(item.id)}
+                onSwipeableWillOpen={() => {
+                  const key = `session-${item.id}`;
+                  if (openRowKey.current !== null && openRowKey.current !== key) {
+                    swipeableRefs.current.get(openRowKey.current)?.close();
+                  }
+                  openRowKey.current = key;
+                }}
+              >
                 <TouchableOpacity 
-                  style={styles.sessionMainAction}
-                  onPress={() => {
-                    setActiveSessionId(item.id);
-                    setIsHistoryOpen(false);
-                  }}
+                  activeOpacity={0.7}
+                  onPress={() => { closeOpenRow(); setActiveSessionId(item.id); setIsHistoryOpen(false); }}
+                  style={[
+                    styles.sessionCard, 
+                    { backgroundColor: isDark ? '#2C3641' : '#FFFFFF' },
+                    item.id === activeSessionId && { borderColor: THEME.primary, borderWidth: 1 }
+                  ]}
                 >
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.sessionTitle, { color: THEME.textMain }]} numberOfLines={1}>
+                  <View style={[styles.sessionIconBox, { backgroundColor: item.id === activeSessionId ? THEME.primary + '20' : isDark ? '#3D4956' : '#F2F2F7' }]}>
+                    <Ionicons 
+                      name={item.id === activeSessionId ? "chatbubble-ellipses" : "chatbubble-outline"} 
+                      size={20} 
+                      color={item.id === activeSessionId ? THEME.primary : THEME.textSecondary} 
+                    />
+                  </View>
+                  <View style={styles.sessionInfo}>
+                    <Text style={[styles.sessionTitle, { color: THEME.textMain }, item.id === activeSessionId && { fontWeight: '700' }]} numberOfLines={1}>
                       {item.titulo || `Conversa #${item.id}`}
                     </Text>
-                    <Text style={[styles.sessionDate, { color: THEME.textSecondary }]}>
-                      {new Date(item.atualizadoEm).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                    </Text>
+                    <View style={styles.sessionMeta}>
+                      <Ionicons name="time-outline" size={12} color={THEME.textSecondary} style={{ marginRight: 4 }} />
+                      <Text style={[styles.sessionDate, { color: THEME.textSecondary }]}>
+                        {new Date(item.atualizadoEm).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </Text>
+                    </View>
                   </View>
-                  <Ionicons name="chevron-forward" size={16} color="#C4C4C6" />
+                  <Ionicons name="chevron-forward" size={16} color={THEME.textSecondary} />
                 </TouchableOpacity>
-              </View>
+              </Swipeable>
             )}
             ListEmptyComponent={
               <View style={styles.emptySessions}>
@@ -1017,6 +1027,14 @@ export default function ChatScreen() {
           />
         </View>
       </Modal>
+      {actionLoading && (
+        <View style={styles.globalLoader}>
+          <View style={[styles.loaderBox, { backgroundColor: isDark ? 'rgba(44,44,46,0.8)' : 'rgba(255,255,255,0.9)' }]}>
+            <ActivityIndicator color={THEME.primary} size="large" />
+            <Text style={[styles.loaderText, { color: THEME.textMain }]}>Excluindo...</Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -1114,6 +1132,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   inputActions: { flexDirection: 'row', alignItems: 'center', marginLeft: 8 },
+  circularProgressContainer: { justifyContent: 'center', alignItems: 'center' },
+  progressCenterIcon: { position: 'absolute' },
   micButton: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
   micButtonActive: { backgroundColor: 'rgba(255, 59, 48, 0.1)', borderRadius: 18 },
   sendButton: { 
@@ -1166,7 +1186,36 @@ const styles = StyleSheet.create({
     justifyContent: 'center', 
     alignItems: 'center' 
   },
-  historyTitle: { fontSize: 20, fontWeight: '700' },
+  historyTitle: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
+  historySubtitle: { fontSize: 13, marginTop: 2, fontWeight: '500' },
+  closeHistoryBtn: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+  historySearchWrapper: { paddingHorizontal: 16, paddingBottom: 12 },
+  searchBox: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, height: 40, borderRadius: 12 },
+  historySearchInput: { flex: 1, fontSize: 16 },
+  sessionCard: { 
+    flexDirection: 'row', 
+    alignItems: 'center',
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: 'transparent'
+  },
+  sessionIconBox: { 
+    width: 44, 
+    height: 44, 
+    borderRadius: 12, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    marginRight: 12 
+  },
+  sessionInfo: { flex: 1 },
+  sessionMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
   sessionRow: { 
     flexDirection: 'row', 
     alignItems: 'center',
@@ -1174,7 +1223,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     paddingLeft: 16,
     marginHorizontal: 16,
-    marginBottom: 1, // Simulates hairline separator in a cleaner way for inset rows
+    marginBottom: 1, 
   },
   sessionMainAction: { 
     flex: 1,
@@ -1192,6 +1241,71 @@ const styles = StyleSheet.create({
   btnDeleteRow: {
     padding: 14,
   },
+  sessionRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 8,
+    paddingRight: 16,
+  },
+  sessionDeleteBtn: {
+    width: 54,
+    height: 54,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   emptySessions: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 100 },
-  emptySessionsText: { fontSize: 16, marginTop: 16, fontWeight: '500' }
+  emptySessionsText: { fontSize: 16, marginTop: 16, fontWeight: '500' },
+  globalLoader: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 99999
+  },
+  loaderBox: {
+    padding: 30,
+    borderRadius: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 5
+  },
+  loaderText: {
+    marginTop: 15,
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+  },
+  eventsContainer: {
+    marginTop: 8,
+    gap: 8,
+    width: '100%',
+  },
+  eventButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(249, 178, 82, 0.1)',
+    padding: 10,
+    borderRadius: 8,
+    gap: 10,
+  },
+  eventButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  toolCallChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+    opacity: 0.7,
+  },
+  toolCallText: {
+    fontSize: 11,
+    color: '#8E9AA9',
+    fontWeight: '500',
+  },
 });

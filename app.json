@@ -4,11 +4,11 @@
     "slug": "gtvendas",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/gtvendas500x500.png",
     "scheme": "gtvendas",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/images/gtvendas500x500.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -24,7 +24,7 @@
     "android": {
       "package": "com.alandelfino.gtvendas",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/gtvendas500x500.png",
         "backgroundColor": "#ffffff"
       },
       "permissions": [
@@ -39,7 +39,7 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/gtvendas-40x40.png"
     },
     "plugins": [
       "expo-router",

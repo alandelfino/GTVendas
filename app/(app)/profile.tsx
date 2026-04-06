@@ -19,13 +19,13 @@ export default function ProfileScreen() {
   const isDark = colorScheme === 'dark';
 
   const THEME = {
-    bg: isDark ? '#000000' : '#F2F2F7',
-    card: isDark ? '#1C1C1E' : '#FFFFFF',
-    text: isDark ? '#FFFFFF' : '#000000',
-    secondaryText: isDark ? '#8E8E93' : '#636366',
-    border: isDark ? '#38383A' : '#C6C6C8',
+    bg: isDark ? '#1C252E' : '#F2F2F7',
+    card: isDark ? '#2C3641' : '#FFFFFF',
+    text: isDark ? '#FFFFFF' : '#1C252E',
+    secondaryText: isDark ? '#8E9AA9' : '#636366',
+    border: isDark ? '#3D4956' : '#C6C6C8',
     danger: '#FF453A',
-    accent: '#0A84FF',
+    accent: '#F9B252',
   };
 
   const ProfileItem = ({ icon, label, value, color }: { icon: string, label: string, value: string, color?: string }) => (

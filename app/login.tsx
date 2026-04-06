@@ -13,7 +13,8 @@ import {
   Alert,
   View,
   Text,
-  Dimensions
+  Dimensions,
+  Image
 } from 'react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
@@ -35,15 +36,15 @@ export default function LoginScreen() {
   const isDark = colorScheme === 'dark';
 
   const THEME = {
-    bg: isDark ? '#000000' : '#F2F2F7',
-    card: isDark ? '#1C1C1E' : '#FFFFFF',
-    text: isDark ? '#FFFFFF' : '#000000',
-    secondaryText: isDark ? '#8E8E93' : '#636366',
-    primary: isDark ? '#0A84FF' : '#007AFF', // iOS SystemBlue
-    accent: '#6C5CE7', // GT Brand Purple
-    border: isDark ? '#38383A' : '#C6C6C8',
-    inputBg: isDark ? '#1C1C1E' : '#FFFFFF',
-    errorText: '#FF453A', // iOS SystemRed
+    bg: isDark ? '#1C252E' : '#F2F2F7',
+    card: isDark ? '#2C3641' : '#FFFFFF',
+    text: isDark ? '#FFFFFF' : '#1C252E',
+    secondaryText: isDark ? '#8E9AA9' : '#636366',
+    primary: '#F9B252', // GT Logo Amber
+    accent: '#F9B252',  // GT Logo Amber
+    border: isDark ? '#3D4956' : '#C6C6C8',
+    inputBg: isDark ? '#2C3641' : '#FFFFFF',
+    errorText: '#FF453A',
   };
 
   useEffect(() => {
@@ -153,8 +154,12 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <View style={[styles.logoContainer, { backgroundColor: THEME.accent, shadowColor: THEME.accent }]}>
-             <Text style={styles.logoBadgeText}>GT</Text>
+          <View style={styles.logoContainer}>
+             <Image 
+               source={require('../assets/images/gtvendas500x500.png')} 
+               style={styles.logoImage} 
+               resizeMode="contain"
+             />
           </View>
           <Text style={[styles.title, { color: THEME.text }]}>GT Vendas</Text>
           <Text style={[styles.subtitle, { color: THEME.secondaryText }]}>Plataforma do Representante</Text>
@@ -250,22 +255,15 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   logoContainer: {
-    width: 90,
-    height: 90,
-    borderRadius: 24,
+    width: 120,
+    height: 120,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24,
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.35,
-    shadowRadius: 18,
-    elevation: 10,
+    marginBottom: 20,
   },
-  logoBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 38,
-    fontWeight: '900',
-    letterSpacing: -2,
+  logoImage: {
+    width: '100%',
+    height: '100%',
   },
   title: {
     fontSize: 34,

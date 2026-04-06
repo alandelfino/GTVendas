@@ -1,6 +1,6 @@
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
-import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 
 const API_BASE_URL = 'https://0d8b0788-6dc6-4c83-b907-494ffd52f0e9-00-1wy28f0g3amh1.spock.replit.dev/';
 

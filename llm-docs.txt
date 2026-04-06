@@ -1,897 +1,1002 @@
-# GT Vendas — Documentação Completa da API
-Versão: 1.0 | Base URL: https://gtvendas.grupotitaniumjeans.com.br
+# GT Vendas — API Mobile: Referência Completa
+Versão: 2.0 | Base URL: https://gtvendas.grupotitaniumjeans.com.br
+Escopo: todos os endpoints acessíveis pelo aplicativo mobile via JWT Bearer Token
 
 ---
 
-## AUTENTICAÇÃO
+## AUTENTICAÇÃO JWT
 
-A API suporta dois mecanismos de autenticação:
+O app mobile usa autenticação via JWT Bearer Token.
+Todos os endpoints (exceto /api/mobile/login e /api/mobile/refresh) exigem o header:
+  Authorization: Bearer <accessToken>
 
-### 1. Sessão (Web)
-Login via POST /api/login. O servidor retorna um cookie de sessão que deve ser enviado automaticamente nas requisições subsequentes.
+O usuário autenticado sempre tem role "user" e está vinculado a um representanteId.
+O backend filtra automaticamente os dados pelo representanteId do token — não é necessário enviá-lo nas queries.
 
-### 2. JWT Bearer Token (Mobile / Apps Nativos)
-Login via POST /api/mobile/login. Retorna accessToken (15 min) e refreshToken (30 dias).
-Envie em todas as requisições: Authorization: Bearer <accessToken>
-Quando o accessToken expirar (erro 401), use POST /api/mobile/refresh para renovar.
-
-### 3. API Token (Integrações / Webservice)
-Token permanente gerado pelo usuário master em /api/tokens.
-Envie: Authorization: Bearer <apiToken>
-Usado exclusivamente nos endpoints de escrita do ERP (POST/PATCH/DELETE em /api/erp/*).
-
-### Níveis de acesso:
-- master: acesso total a todos os endpoints
-- webservice: acesso a leitura do ERP e endpoints tokenAuth
-- user: acesso às rotas /api/rep/* (vinculado a um representanteId)
+Fluxo completo:
+1. POST /api/mobile/login → recebe accessToken (15 min) + refreshToken (30 dias)
+2. Armazenar accessToken e refreshToken em SecureStorage
+3. Enviar "Authorization: Bearer <accessToken>" em toda requisição autenticada
+4. Ao receber HTTP 401: chamar POST /api/mobile/refresh → novo accessToken
+5. Reenviar a requisição original com o novo accessToken
 
 ---
 
-## MÓDULO: AUTENTICAÇÃO WEB
-
-### POST /api/login
-Autentica o usuário e cria uma sessão.
-Auth: nenhuma (público)
-Body: { "username": "string", "password": "string" }
-Response 200: { "id": "uuid", "username": "string", "role": "master|user|webservice", "representanteId": "string|null", "nomeCompleto": "string|null", "companiesIds": ["string"] }
-Response 401: credenciais inválidas
-
-### POST /api/logout
-Encerra a sessão atual.
-Auth: sessão
-Response 200: vazio
-
-### GET /api/user
-Retorna o usuário autenticado pela sessão atual.
-Auth: sessão
-Response 200: objeto User (sem password)
-Response 401: não autenticado
-
-### GET /api/user-count
-Retorna a quantidade total de usuários cadastrados (usado para verificar se o sistema já foi inicializado).
-Auth: nenhuma (público)
-Response 200: { "count": number }
-
----
-
-## MÓDULO: AUTENTICAÇÃO MOBILE (JWT)
+## MÓDULO 1: AUTENTICAÇÃO
 
 ### POST /api/mobile/login
-Autentica um usuário mobile e retorna tokens JWT.
+Autentica o usuário e retorna tokens JWT.
 Auth: nenhuma (público)
-Body: { "username": "string", "password": "string" }
-Response 200: {
-  "accessToken": "string (JWT, validade 15min)",
-  "refreshToken": "string (JWT, validade 30 dias)",
-  "user": { "id": "uuid", "username": "string", "role": "string", "representanteId": "string|null", "nomeCompleto": "string|null", "companiesIds": ["string"] }
-}
-Response 400: username e password são obrigatórios
-Response 401: credenciais inválidas
+Content-Type: application/json
+
+Entrada (Body JSON):
+  username: string (obrigatório) — nome de usuário
+  password: string (obrigatório) — senha
+
+Saída 200 (JSON):
+  accessToken: string — JWT válido por 15 minutos
+  refreshToken: string — JWT válido por 30 dias, armazenar em SecureStorage
+  user:
+    id: string (UUID) — identificador único do usuário no sistema
+    username: string — nome de usuário
+    role: string — sempre "user" para representantes
+    representanteId: string | null — ID externo do representante vinculado
+    nomeCompleto: string | null — nome completo do usuário
+    companiesIds: string[] — lista de IDs de empresas às quais o representante tem acesso
+
+Erros:
+  400: { "error": "username e password são obrigatórios" }
+  401: { "error": "Credenciais inválidas" }
+
+---
 
 ### POST /api/mobile/refresh
 Renova o accessToken usando o refreshToken.
-Auth: nenhuma (público) — o refreshToken é a credencial
-Body: { "refreshToken": "string" }
-Response 200: { "accessToken": "string (JWT, validade 15min)" }
-Response 400: refreshToken obrigatório
-Response 401: token inválido ou expirado
+Auth: nenhuma — o refreshToken é a credencial
+Content-Type: application/json
+
+Entrada (Body JSON):
+  refreshToken: string (obrigatório) — token salvo no SecureStorage
+
+Saída 200 (JSON):
+  accessToken: string — novo JWT válido por 15 minutos
+
+Erros:
+  400: { "error": "refreshToken é obrigatório" }
+  401: { "error": "Token inválido ou expirado" }
+
+---
 
 ### GET /api/mobile/me
-Retorna o usuário autenticado pelo JWT.
-Auth: JWT Bearer token
-Response 200: objeto User (sem password)
-Response 401: não autenticado
+Retorna os dados do usuário autenticado pelo JWT.
+Auth: Bearer Token (obrigatório)
+
+Entrada: nenhuma
+
+Saída 200 (JSON):
+  id: string (UUID)
+  username: string
+  role: string
+  representanteId: string | null
+  nomeCompleto: string | null
+  companiesIds: string[]
+
+Erros:
+  401: { "error": "Nao autenticado" }
 
 ---
 
-## MÓDULO: ADMINISTRAÇÃO DE USUÁRIOS (role: master)
-
-### GET /api/admin/users
-Lista todos os usuários do sistema.
-Auth: sessão ou JWT | Role: master
-Response 200: Array de { id, username, role, representanteId, nomeCompleto, companiesIds }
-
-### POST /api/admin/users
-Cria um novo usuário.
-Auth: sessão ou JWT | Role: master
-Body: { "username": "string (obrigatório)", "password": "string (obrigatório)", "role": "master|user|webservice", "representanteId": "string|null", "nomeCompleto": "string|null" }
-Response 201: objeto User criado
-Response 400: username e password obrigatórios
-Response 409: username já existe
-
-### PATCH /api/admin/users/:id
-Atualiza dados de um usuário.
-Auth: sessão ou JWT | Role: master
-Params: id (UUID do usuário)
-Body (todos opcionais): { "username": "string", "password": "string", "role": "string", "representanteId": "string|null", "nomeCompleto": "string|null" }
-Response 200: objeto User atualizado
-
-### DELETE /api/admin/users/:id
-Remove um usuário do sistema.
-Auth: sessão ou JWT | Role: master
-Params: id (UUID do usuário)
-Response 200: { "success": true }
-
-### PATCH /api/admin/representantes/:idExterno/companies
-Atualiza as empresas vinculadas ao representante de um usuário.
-Auth: sessão ou JWT | Role: master
-Params: idExterno (ID externo do representante, ex: "REP001")
-Body: { "companiesIds": ["string"] }
-Response 200: { "success": true }
+## MÓDULO 2: EMPRESAS
 
 ### GET /api/companies
-Lista todas as empresas cadastradas.
-Auth: sessão ou JWT | Role: qualquer autenticado
-Response 200: Array de empresas
+Lista todas as empresas cadastradas no sistema.
+Auth: Bearer Token (obrigatório)
+
+Entrada: nenhuma
+
+Saída 200 (JSON Array):
+  id: string — identificador único da empresa
+  nome: string — razão social
+  fantasia: string | null — nome fantasia
 
 ---
 
-## MÓDULO: TOKENS DE API
-
-### GET /api/tokens
-Lista os tokens de API criados.
-Auth: sessão ou JWT | Role: master ou webservice
-Response 200: Array de { id, nome, token (mascarado), active, createdBy, lastUsed, criadoEm }
-
-### POST /api/tokens
-Cria um novo token de API.
-Auth: sessão ou JWT | Role: master ou webservice
-Body: { "nome": "string (obrigatório)" }
-Response 201: { id, nome, token (completo, salvar agora!), active, criadoEm }
-
-### DELETE /api/tokens/:id
-Revoga (deleta) um token de API.
-Auth: sessão ou JWT | Role: master ou webservice
-Params: id (número inteiro)
-Response 200: { "success": true }
-
----
-
-## MÓDULO: ERP — REPRESENTANTES
-
-### GET /api/erp/representantes
-Lista representantes.
-Auth: sessão, JWT, ou API Token | Role: qualquer autenticado
-Query params (master/webservice):
-  - search: string (filtro por nome)
-  - page: number (default 1)
-  - limit: number (default 30, max 200)
-Response 200: { "data": [Representante], "total": number, "page": number, "limit": number }
-Representante: { idExterno, nome, email, telefone, ativo }
-
-### POST /api/erp/representantes
-Cria um ou múltiplos representantes (aceita objeto ou array).
-Auth: API Token Bearer
-Body (objeto ou array): {
-  "idExterno": "string (obrigatório, único)",
-  "nome": "string (obrigatório)",
-  "email": "string|null",
-  "telefone": "string|null",
-  "ativo": boolean (default true)
-}
-Response 200: { "success": true, "data": [Representante], "count": number }
-Response 400: erro de validação com { "campos": { campo: mensagem } }
-Response 409: idExterno já existe
-
-### PATCH /api/erp/representantes/:idExterno
-Atualiza parcialmente um representante.
-Auth: API Token Bearer
-Params: idExterno
-Body (todos opcionais): { "nome": "string", "email": "string|null", "telefone": "string|null", "ativo": boolean }
-Response 200: { "success": true, "data": Representante }
-Response 404: não encontrado
-
-### DELETE /api/erp/representantes/:idExterno
-Remove um representante.
-Auth: API Token Bearer
-Params: idExterno
-Response 200: { "success": true }
-
----
-
-## MÓDULO: ERP — CLIENTES
+## MÓDULO 3: CLIENTES
 
 ### GET /api/erp/clientes
-Lista clientes com paginação.
-Auth: sessão, JWT, ou API Token | Role: qualquer autenticado
-Query params:
-  - search: string (filtro por nome ou CNPJ)
-  - page: number (default 1)
-  - limit: number (default 30, max 200)
-  - status: "ativo"|"inativo"|"restrito"|"bloqueado"|"semAtividade"
-  - representanteId: string (apenas master/webservice)
-Response 200: { "data": [Cliente], "total": number, "page": number, "limit": number }
-Cliente: { idExterno, criadoEm (ms), modificadoEm (ms), nome, fantasia, cnpj, statusDescricao, endereco: { cep, logradouro, numero, bairro, cidade, uf, pais }, representanteId }
-Nota: usuário com role "user" só vê clientes do seu representanteId
+Lista os clientes da carteira do representante autenticado com paginação.
+Auth: Bearer Token (obrigatório)
+Nota: role "user" vê automaticamente apenas os clientes do seu representanteId
+
+Entrada (Query Params):
+  search: string (opcional) — filtro por nome ou CNPJ
+  page: number (opcional, default 1) — página atual
+  limit: number (opcional, default 30, máx 200) — itens por página
+  status: string (opcional) — "ativo" | "inativo" | "restrito" | "bloqueado" | "semAtividade"
+
+Saída 200 (JSON):
+  data: array de Cliente
+    idExterno: string — ID único do cliente no ERP
+    criadoEm: number — timestamp Unix em milissegundos
+    modificadoEm: number — timestamp Unix em milissegundos
+    nome: string — razão social do cliente
+    fantasia: string | null — nome fantasia
+    cnpj: string | null — CNPJ do cliente
+    statusDescricao: string — "Ativo" | "Inativo" | "Restrição" | "Bloqueado"
+    representanteId: string — ID externo do representante responsável
+    endereco:
+      cep: string | null
+      logradouro: string | null
+      numero: number | null
+      bairro: string | null
+      cidade: string | null
+      uf: string | null — sigla do estado (2 letras)
+      pais: string | null
+  total: number — total de registros encontrados
+  page: number — página atual
+  limit: number — itens por página
+
+---
 
 ### GET /api/erp/clientes/stats
-Retorna estatísticas de clientes.
-Auth: sessão, JWT, ou API Token | Role: qualquer autenticado
-Response 200: { "total": number, "ativos": number, "inativos": number, "restritos": number, "bloqueados": number, "semAtividade": number, "semStatus": number }
+Retorna estatísticas resumidas dos clientes do representante.
+Auth: Bearer Token (obrigatório)
+
+Entrada: nenhuma
+
+Saída 200 (JSON):
+  total: number — total de clientes na carteira
+  ativos: number — clientes com status "Ativo"
+  inativos: number — clientes com status "Inativo"
+  restritos: number — clientes com status "Restrição"
+  bloqueados: number — clientes com status "Bloqueado"
+  semAtividade: number — clientes sem atividade recente
+  semStatus: number — clientes sem status definido
+
+---
 
 ### GET /api/erp/clientes/:idExterno/pedidos
-Lista pedidos de um cliente específico.
-Auth: sessão, JWT, ou API Token | Role: qualquer autenticado
-Params: idExterno (ex: "CLI001")
-Query: page, limit (default 50, max 200)
-Response 200: { "data": [Pedido], "total": number, "page": number, "limit": number }
-Nota: role "user" só acessa clientes da sua carteira
+Lista os pedidos de um cliente específico.
+Auth: Bearer Token (obrigatório)
+Nota: role "user" só acessa clientes da sua carteira — retorna 403 caso contrário
 
-### POST /api/erp/clientes
-Cria um ou múltiplos clientes (aceita objeto ou array).
-Auth: API Token Bearer
-Body: {
-  "idExterno": "string (obrigatório, único)",
-  "nome": "string (obrigatório)",
-  "fantasia": "string|null",
-  "cnpj": "string",
-  "statusDescricao": "Ativo|Inativo|Restrição|Bloqueado" (obrigatório),
-  "representanteId": "string (obrigatório, deve existir em representantes)",
-  "criadoEm": number (timestamp ms, opcional),
-  "endereco": {
-    "cep": "string",
-    "logradouro": "string",
-    "numero": number|null,
-    "bairro": "string",
-    "cidade": "string",
-    "uf": "AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO",
-    "pais": "string"
-  }
-}
-Response 200: { "success": true, "data": [Cliente], "count": number }
-Response 400: erro de validação
-Response 409: idExterno já existe
+Entrada (Path Params):
+  idExterno: string (obrigatório) — ID externo do cliente
 
-### PATCH /api/erp/clientes/:idExterno
-Atualiza parcialmente um cliente.
-Auth: API Token Bearer
-Params: idExterno
-Body (todos opcionais): mesmos campos do POST, mas nenhum é obrigatório
-Response 200: { "success": true, "data": Cliente }
-Response 404: não encontrado
+Entrada (Query Params):
+  page: number (opcional, default 1)
+  limit: number (opcional, default 50, máx 200)
 
-### DELETE /api/erp/clientes/:idExterno
-Remove um cliente.
-Auth: API Token Bearer
-Params: idExterno
-Response 200: { "success": true }
+Saída 200 (JSON):
+  data: array de Pedido (mesmo schema de GET /api/erp/pedidos)
+  total: number
+  page: number
+  limit: number
+
+Erros:
+  403: { "error": "Acesso negado" } — cliente não pertence à carteira do representante
+  404: { "error": "Cliente não encontrado" }
 
 ---
 
-## MÓDULO: ERP — PEDIDOS
+## MÓDULO 4: PEDIDOS
 
 ### GET /api/erp/pedidos
-Lista pedidos com paginação.
-Auth: sessão, JWT, ou API Token | Role: qualquer autenticado
-Query params:
-  - page: number (default 1)
-  - limit: number (default 30, max 200)
-  - search: string
-  - status: string (ex: "Pendente","Concluído","Expedido","Faturado")
-  - colecaoId: string (ex: "COL004")
-  - clienteId: string (ex: "CLI001")
-  - representanteId: string (apenas master/webservice)
-Response 200: { "data": [Pedido], "total": number, "page": number, "limit": number }
-Pedido: {
-  idExterno: string,
-  cliente: {
-    idExterno: string,
-    nome: string,
-    fantasia: string | null,
-    cnpj: string | null,
-    cidade: string | null,
-    uf: string | null,
-    statusDescricao: string | null
-  } | null,
-  cadastradoEm: number (timestamp ms),
-  valorTotal: number (centavos),
-  status: string
-}
+Lista os pedidos do representante com paginação.
+Auth: Bearer Token (obrigatório)
+Nota: role "user" vê automaticamente apenas os pedidos do seu representanteId
+
+Entrada (Query Params):
+  page: number (opcional, default 1)
+  limit: number (opcional, default 30, máx 200)
+  search: string (opcional) — busca por nome do cliente ou ID do pedido
+  status: string (opcional) — "Pendente" | "Concluído" | "Expedido" | "Faturado" | "Cancelado"
+  colecaoId: string (opcional) — filtra por coleção ex: "COL004"
+  clienteId: string (opcional) — filtra por cliente ex: "CLI001"
+
+Saída 200 (JSON):
+  data: array de Pedido
+    idExterno: string — ID único do pedido no ERP
+    cadastradoEm: number — timestamp Unix em milissegundos
+    valorTotal: number — valor total em CENTAVOS (ex: 1990 = R$19,90)
+    status: string — "Pendente" | "Concluído" | "Expedido" | "Faturado" | "Cancelado"
+    cliente:
+      idExterno: string — ID do cliente
+      nome: string — razão social
+      fantasia: string | null — nome fantasia
+      cnpj: string | null
+      cidade: string | null
+      uf: string | null
+      statusDescricao: string | null
+  total: number
+  page: number
+  limit: number
+
+---
 
 ### GET /api/erp/pedidos/:idExterno
-Retorna um pedido completo com seus itens.
-Auth: sessão, JWT, ou API Token | Role: qualquer autenticado
-Params: idExterno (ex: "PED0001")
-Response 200: PedidoCompleto com array produtos/itens
+Retorna um pedido completo com todos os seus itens.
+Auth: Bearer Token (obrigatório)
 
-### GET /api/erp/pedidos/stats
-Retorna estatísticas de pedidos (somente master).
-Auth: sessão ou JWT | Role: master ou webservice
-Query: representanteId, colecaoId, clienteId (todos opcionais)
-Response 200: { totalPedidos, valorTotal, totalQuantidade, ticketMedio, porStatus: {...} }
+Entrada (Path Params):
+  idExterno: string (obrigatório) — ID externo do pedido
 
-### POST /api/erp/pedidos
-Cria um ou múltiplos pedidos (aceita objeto ou array).
-Auth: API Token Bearer
-Body: {
-  "idExterno": "string (obrigatório, único)",
-  "clienteId": "string (obrigatório, deve existir em clientes)",
-  "status": "Pendente|Concluído|Expedido|Faturado|Cancelado",
-  "cadastradoEm": number (timestamp ms, opcional),
-  "descontos": [{ "tipo": "string", "valor": number (centavos) }] (opcional),
-  "produtos": [
-    {
-      "id": "string (idExterno do produto, deve existir)",
-      "precoVendido": number (centavos),
-      "grade": [{ "nome": "string (deve existir na grade do produto)", "quantidade": number }]
-    }
-  ]
-}
-valorTotal é calculado automaticamente: sum(precoVendido * qtd) - sum(descontos)
-Response 200: { "success": true, "data": [Pedido], "count": number }
-Response 400: clienteId, produto ou item de grade não encontrado
-Response 409: idExterno já existe
+Saída 200 (JSON):
+  idExterno: string
+  cadastradoEm: number — timestamp em ms
+  valorTotal: number — em centavos
+  status: string
+  cliente: objeto Cliente (idExterno, nome, fantasia, cnpj, cidade, uf, statusDescricao)
+  descontos: array de { tipo: string, valor: number } — valor em centavos
+  itens: array de ItemPedido
+    idExterno: string — ID do produto
+    nome: string — nome do produto
+    precoVendido: number — preço unitário em centavos
+    grade: array de { nome: string, quantidade: number } — tamanhos e quantidades
 
-### PATCH /api/erp/pedidos/:idExterno
-Atualiza parcialmente um pedido.
-Auth: API Token Bearer
-Params: idExterno
-Body (todos opcionais): { "status": "string", "cadastradoEm": number }
-Response 200: { "success": true, "data": Pedido }
-
-### DELETE /api/erp/pedidos/:idExterno
-Remove um pedido.
-Auth: API Token Bearer
-Params: idExterno
-Response 200: { "success": true }
+Erros:
+  404: { "error": "Pedido não encontrado" }
 
 ---
 
-## MÓDULO: ERP — PRODUTOS
+## MÓDULO 5: PRODUTOS
 
 ### GET /api/erp/produtos
-Lista produtos com paginação.
-Auth: sessão, JWT, ou API Token | Role: qualquer autenticado
-Query: page, limit, search, categoriaId (ex: "CAT001"), colecaoId (ex: "COL004"), gradeId
-Response 200: { "data": [Produto], "total": number, "page": number, "limit": number }
-Produto: { idExterno, nome, descricao, preco (centavos), categoriaId, colecaoId, gradeId, ativo }
+Lista os produtos disponíveis com paginação.
+Auth: Bearer Token (obrigatório)
 
-### POST /api/erp/produtos
-Cria um ou múltiplos produtos.
-Auth: API Token Bearer
-Body: {
-  "idExterno": "string (obrigatório, único)",
-  "nome": "string (obrigatório)",
-  "descricao": "string|null",
-  "preco": number (centavos, obrigatório),
-  "categoriaId": "string (obrigatório, deve existir)",
-  "colecaoId": "string (obrigatório, deve existir)",
-  "gradeId": "string (obrigatório, deve existir)",
-  "ativo": boolean (default true)
-}
-Response 200: { "success": true, "data": [Produto], "count": number }
+Entrada (Query Params):
+  page: number (opcional, default 1)
+  limit: number (opcional, default 30, máx 200)
+  search: string (opcional) — filtro por nome do produto
+  categoriaId: string (opcional) — ex: "CAT001"
+  colecaoId: string (opcional) — ex: "COL004"
+  gradeId: string (opcional)
 
-### PATCH /api/erp/produtos/:idExterno
-Atualiza parcialmente um produto.
-Auth: API Token Bearer
-Body (todos opcionais): mesmos campos do POST
-Response 200: { "success": true, "data": Produto }
-
-### DELETE /api/erp/produtos/:idExterno
-Remove um produto.
-Auth: API Token Bearer
-Response 200: { "success": true }
+Saída 200 (JSON):
+  data: array de Produto
+    idExterno: string — ID único do produto no ERP
+    nome: string — nome do produto
+    descricao: string | null — descrição
+    preco: number — preço em CENTAVOS
+    categoriaId: string — ID da categoria
+    colecaoId: string — ID da coleção
+    gradeId: string — ID da grade de tamanhos
+    ativo: boolean — se o produto está ativo
+  total: number
+  page: number
+  limit: number
 
 ---
 
-## MÓDULO: ERP — CATEGORIAS
+## MÓDULO 6: CATEGORIAS
 
 ### GET /api/erp/categorias
-Lista todas as categorias.
-Auth: sessão, JWT, ou API Token | Role: qualquer autenticado
-Query: page, limit, search
-Response 200: { "data": [Categoria], "total": number }
-Categoria: { idExterno, nome, descricao }
+Lista todas as categorias de produtos.
+Auth: Bearer Token (obrigatório)
 
-### POST /api/erp/categorias
-Cria uma ou múltiplas categorias.
-Auth: API Token Bearer
-Body: { "idExterno": "string", "nome": "string", "descricao": "string|null" }
-Response 200: { "success": true, "data": [Categoria], "count": number }
+Entrada (Query Params):
+  page: number (opcional, default 1)
+  limit: number (opcional, default 30)
+  search: string (opcional)
 
-### PATCH /api/erp/categorias/:idExterno
-Atualiza uma categoria.
-Auth: API Token Bearer
-Body (opcionais): { "nome": "string", "descricao": "string|null" }
-Response 200: { "success": true, "data": Categoria }
-
-### DELETE /api/erp/categorias/:idExterno
-Remove uma categoria.
-Auth: API Token Bearer
-Response 200: { "success": true }
+Saída 200 (JSON):
+  data: array de Categoria
+    idExterno: string
+    nome: string
+    descricao: string | null
+  total: number
+  page: number
+  limit: number
 
 ---
 
-## MÓDULO: ERP — COLEÇÕES
+## MÓDULO 7: COLEÇÕES
 
 ### GET /api/erp/colecoes
-Lista todas as coleções.
-Auth: sessão, JWT, ou API Token | Role: qualquer autenticado
-Query: page, limit, search, status ("active"|"inactive")
-Response 200: { "data": [Colecao], "total": number }
-Colecao: { idExterno, nome, descricao, status, cadastradoEm (ms) }
+Lista todas as coleções de produtos.
+Auth: Bearer Token (obrigatório)
 
-### POST /api/erp/colecoes
-Cria uma ou múltiplas coleções.
-Auth: API Token Bearer
-Body: { "idExterno": "string", "nome": "string", "descricao": "string|null", "status": "active|inactive", "cadastradoEm": number|null }
-Response 200: { "success": true, "data": [Colecao], "count": number }
+Entrada (Query Params):
+  page: number (opcional, default 1)
+  limit: number (opcional, default 30)
+  search: string (opcional)
+  status: string (opcional) — "active" | "inactive"
 
-### PATCH /api/erp/colecoes/:idExterno
-Atualiza uma coleção.
-Auth: API Token Bearer
-Body (opcionais): { "nome", "descricao", "status", "cadastradoEm" }
-Response 200: { "success": true, "data": Colecao }
-
-### DELETE /api/erp/colecoes/:idExterno
-Remove uma coleção.
-Auth: API Token Bearer
-Response 200: { "success": true }
+Saída 200 (JSON):
+  data: array de Colecao
+    idExterno: string
+    nome: string
+    descricao: string | null
+    status: string — "active" | "inactive"
+    cadastradoEm: number | null — timestamp em ms
+  total: number
+  page: number
+  limit: number
 
 ---
 
-## MÓDULO: ERP — GRADES E ITENS DE GRADE
+## MÓDULO 8: GRADES E TAMANHOS
 
 ### GET /api/erp/grades
-Lista grades de tamanhos/variações.
-Auth: sessão, JWT, ou API Token | Role: qualquer autenticado
-Response 200: { "data": [Grade], "total": number }
-Grade: { idExterno, nome, descricao }
+Lista as grades de tamanhos disponíveis.
+Auth: Bearer Token (obrigatório)
 
-### POST /api/erp/grades
-Cria uma ou múltiplas grades.
-Auth: API Token Bearer
-Body: { "idExterno": "string", "nome": "string", "descricao": "string|null" }
-Response 200: { "success": true, "data": [Grade], "count": number }
+Entrada (Query Params):
+  page: number (opcional, default 1)
+  limit: number (opcional, default 30)
 
-### PATCH /api/erp/grades/:idExterno
-Atualiza uma grade.
-Auth: API Token Bearer
-Response 200: { "success": true, "data": Grade }
+Saída 200 (JSON):
+  data: array de Grade
+    idExterno: string
+    nome: string
+    descricao: string | null
+  total: number
+  page: number
+  limit: number
 
-### DELETE /api/erp/grades/:idExterno
-Remove uma grade.
-Auth: API Token Bearer
-Response 200: { "success": true }
+---
 
 ### GET /api/erp/itens-grade
-Lista itens de grade (tamanhos: P, M, G, GG, etc).
-Auth: sessão, JWT, ou API Token | Role: qualquer autenticado
-Query: gradeId (filtro obrigatório recomendado)
-Response 200: { "data": [ItemGrade], "total": number }
-ItemGrade: { idExterno, gradeId, nome, ordem }
+Lista os itens de uma grade (ex: P, M, G, GG).
+Auth: Bearer Token (obrigatório)
 
-### POST /api/erp/itens-grade
-Cria um ou múltiplos itens de grade.
-Auth: API Token Bearer
-Body: { "idExterno": "string", "gradeId": "string (deve existir)", "nome": "string", "ordem": number }
-Response 200: { "success": true, "data": [ItemGrade], "count": number }
+Entrada (Query Params):
+  gradeId: string (recomendado) — filtra por grade específica
+  page: number (opcional, default 1)
+  limit: number (opcional, default 100)
 
-### PATCH /api/erp/itens-grade/:idExterno
-Atualiza um item de grade.
-Auth: API Token Bearer
-Response 200: { "success": true, "data": ItemGrade }
-
-### DELETE /api/erp/itens-grade/:idExterno
-Remove um item de grade.
-Auth: API Token Bearer
-Response 200: { "success": true }
+Saída 200 (JSON):
+  data: array de ItemGrade
+    idExterno: string
+    gradeId: string — ID da grade pai
+    nome: string — ex: "P", "M", "G", "GG", "42", "44"
+    ordem: number — posição de exibição
+  total: number
+  page: number
+  limit: number
 
 ---
 
-## MÓDULO: ERP — TÍTULOS FINANCEIROS
+## MÓDULO 9: TÍTULOS FINANCEIROS
 
 ### GET /api/erp/titulos
-Lista títulos financeiros (contas a receber).
-Auth: sessão, JWT, ou API Token | Role: qualquer autenticado
-Query:
-  - page: number (default 1)
-  - limit: number (default 30, max 200)
-  - search: string
-  - clienteId: string
-  - status: "aberto"|"pago"|"vencido"|"cancelado"
-  - dataVencimentoInicio: string (YYYY-MM-DD)
-  - dataVencimentoFim: string (YYYY-MM-DD)
-Response 200: { "data": [Titulo], "total": number }
-Titulo: { idExterno, clienteId, valor (centavos), dataEmissao, dataVencimento, dataPagamento, status, descricao }
+Lista os títulos financeiros (contas a receber) do representante.
+Auth: Bearer Token (obrigatório)
+Nota: role "user" vê apenas os títulos dos clientes da sua carteira
+
+Entrada (Query Params):
+  page: number (opcional, default 1)
+  limit: number (opcional, default 30, máx 200)
+  search: string (opcional)
+  clienteId: string (opcional) — filtra por cliente
+  status: string (opcional) — "aberto" | "pago" | "vencido" | "cancelado"
+  dataVencimentoInicio: string (opcional) — formato "YYYY-MM-DD"
+  dataVencimentoFim: string (opcional) — formato "YYYY-MM-DD"
+
+Saída 200 (JSON):
+  data: array de Titulo
+    idExterno: string — ID único do título
+    clienteId: string — ID externo do cliente
+    valor: number — valor em CENTAVOS
+    dataEmissao: string | null — "YYYY-MM-DD"
+    dataVencimento: string | null — "YYYY-MM-DD"
+    dataPagamento: string | null — "YYYY-MM-DD" (null se não pago)
+    status: string — "aberto" | "pago" | "vencido" | "cancelado"
+    descricao: string | null — descrição/observação do título
+  total: number
+  page: number
+  limit: number
 
 ---
 
-## MÓDULO: REPRESENTANTE — METAS
+## MÓDULO 10: REPRESENTANTES
+
+### GET /api/erp/representantes
+Lista representantes. Para role "user", retorna apenas o próprio representante.
+Auth: Bearer Token (obrigatório)
+
+Entrada (Query Params):
+  page: number (opcional, default 1)
+  limit: number (opcional, default 30)
+  search: string (opcional) — filtra por nome (apenas para master/webservice)
+
+Saída 200 (JSON):
+  data: array de Representante
+    idExterno: string — ID externo do representante
+    nome: string — nome do representante/empresa
+    email: string | null
+    telefone: string | null
+    ativo: boolean
+    companiesIds: string[] — IDs das empresas vinculadas
+  total: number
+  page: number
+  limit: number
+
+---
+
+## MÓDULO 11: METAS DE VENDA
 
 ### GET /api/rep/metas
 Retorna os grupos de metas do representante autenticado.
-Auth: sessão, JWT, ou API Token | Role: user com representanteId
-Response 200: Array de MetaGrupo
-MetaGrupo: {
-  grupoId: number,
-  grupoNome: string,
-  colecaoIdExterno: string,
-  colecaoNome: string,
-  empresaId: string,
-  bronze: number (em peças/unidades),
-  prata: number (em peças/unidades),
-  ouro: number (em peças/unidades),
-  totalUnidades: number (total vendido pelo rep nessa coleção),
-  inicioMeta: string (ISO date),
-  fimMeta: string (ISO date),
-  criadoEm: string,
-  atualizadoEm: string
-}
-Nota: bronze/prata/ouro são metas em número de PEÇAS (não em reais)
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+
+Entrada: nenhuma
+
+Saída 200 (JSON Array de MetaGrupo):
+  grupoId: number — ID do grupo de meta
+  grupoNome: string — nome do grupo
+  colecaoIdExterno: string — ID externo da coleção associada
+  colecaoNome: string — nome da coleção
+  empresaId: string — ID da empresa
+  bronze: number — meta bronze em PEÇAS (unidades)
+  prata: number — meta prata em PEÇAS (unidades)
+  ouro: number — meta ouro em PEÇAS (unidades)
+  totalUnidades: number — total de peças vendidas pelo representante nessa coleção
+  inicioMeta: string — data início no formato "YYYY-MM-DD"
+  fimMeta: string — data fim no formato "YYYY-MM-DD"
+  criadoEm: string — ISO 8601
+  atualizadoEm: string — ISO 8601
+
+Atenção: bronze/prata/ouro são metas em número de PEÇAS, não em reais
 
 ---
 
-## MÓDULO: REPRESENTANTE — ANALYTICS
+## MÓDULO 12: ANALYTICS DE VENDAS
 
 ### GET /api/rep/analytics
-Retorna dados analíticos de vendas do representante.
-Auth: sessão, JWT, ou API Token | Role: user com representanteId
-Query:
-  - colecaoId: string (opcional, filtra por coleção ex: "COL004")
-  - groupBy: "day"|"week"|"month" (default "day")
-Response 200: {
-  "clientesAtivos": number,
-  "clientesAtendidos": number,
-  "summary": {
-    "totalValor": number (centavos),
-    "totalPedidos": number,
-    "totalQuantidade": number,
-    "ticketMedio": number (centavos)
-  },
-  "chart": [{ "periodo": "YYYY-MM-DD", "valor": number, "quantidade": number }],
-  "topProdutos": [{ "produtoId": "string", "nome": "string", "quantidade": number, "valor": number }],
-  "topCategorias": [{ "categoriaId": "string", "nome": "string", "quantidade": number, "valor": number }],
-  "topClientes": [{ "clienteId": "string", "nome": "string", "quantidade": number, "valor": number }],
-  "topCidades": [{ "cidade": "string", "uf": "string", "quantidade": number, "valor": number }]
-}
+Retorna dados analíticos de vendas do representante autenticado.
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+
+Entrada (Query Params):
+  colecaoId: string (opcional) — filtra por coleção ex: "COL004"
+  groupBy: string (opcional, default "day") — "day" | "week" | "month"
+
+Saída 200 (JSON):
+  clientesAtivos: number — total de clientes ativos na carteira
+  clientesAtendidos: number — clientes com pelo menos um pedido no período
+  summary:
+    totalValor: number — valor total vendido em CENTAVOS
+    totalPedidos: number — quantidade de pedidos
+    totalQuantidade: number — total de peças vendidas
+    ticketMedio: number — ticket médio em CENTAVOS
+  chart: array de
+    periodo: string — "YYYY-MM-DD" (agrupa conforme groupBy)
+    valor: number — valor em centavos no período
+    quantidade: number — quantidade de peças no período
+  topProdutos: array de
+    produtoId: string
+    nome: string
+    quantidade: number — peças vendidas
+    valor: number — valor em centavos
+  topCategorias: array de
+    categoriaId: string
+    nome: string
+    quantidade: number
+    valor: number
+  topClientes: array de
+    clienteId: string
+    nome: string
+    quantidade: number
+    valor: number
+  topCidades: array de
+    cidade: string
+    uf: string
+    quantidade: number
+    valor: number
 
 ---
 
-## MÓDULO: REPRESENTANTE — ASSISTENTE GT (CHATBOT IA)
+## MÓDULO 13: ASSISTENTE GT (CHAT IA)
 
-O Assistente GT é um chatbot com GPT e Function Calling. A comunicação do chat é feita via WebSocket.
+O Assistente GT é um chatbot com GPT-4 e Function Calling.
+Comunicação via HTTP REST síncrono — await até a resposta completa.
+
+### POST /api/mobile/chat/message
+Envia uma mensagem ao assistente e aguarda a resposta completa.
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+Content-Type: application/json
+
+Entrada (Body JSON):
+  content: string (obrigatório) — texto da mensagem do usuário
+  sessionId: number (obrigatório) — ID da sessão de chat (deve ser criada previamente)
+  voiceMessageId: number (opcional) — ID de uma mensagem de voz gravada previamente
+
+Saída 200 (JSON):
+  messageId: number — ID da mensagem de resposta salva no banco
+  content: string — texto completo da resposta do assistente
+  events: array de eventos gerados durante o processamento
+    Evento tool_call: { "type": "tool_call", "tool": "nome_da_funcao" }
+    Evento pdf: { "type": "pdf", "reportId": "string (UUID)", "url": "string", "titulo": "string" }
+    Evento map_embed: { "type": "map_embed", "embedUrl": "string", "mapsUrl": "string" }
+    Evento html_widget: { "type": "html_widget", "widgetId": "string", "html": "string", "titulo": "string" }
+
+Erros:
+  400: { "error": "content é obrigatório e não pode ser vazio" }
+  400: { "error": "sessionId é obrigatório e deve ser um inteiro positivo" }
+  403: { "error": "Sessão não encontrada ou sem permissão" }
+  500: { "error": "mensagem de erro interno" }
+
+---
 
 ### POST /api/rep/chat/sessions
-Cria uma nova sessão de chat.
-Auth: sessão ou JWT | Role: user
-Response 200: { "id": number, "representanteId": "string", "criadoEm": "string", "titulo": "string|null" }
+Cria uma nova sessão de chat para o representante.
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+Content-Type: application/json
+
+Entrada (Body JSON): vazio ou {}
+
+Saída 200 (JSON):
+  id: number — ID da sessão (usar como sessionId nos demais endpoints)
+  representanteId: string — ID do representante
+  criadoEm: string — timestamp ISO 8601
+  titulo: string | null — título gerado automaticamente após a primeira mensagem
+
+---
 
 ### GET /api/rep/chat/sessions
-Lista sessões de chat do representante.
-Auth: sessão ou JWT | Role: user
-Response 200: Array de sessões ordenadas por data decrescente
+Lista todas as sessões de chat do representante autenticado.
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+
+Entrada: nenhuma
+
+Saída 200 (JSON Array de ChatSession):
+  id: number
+  representanteId: string
+  criadoEm: string — ISO 8601
+  titulo: string | null — título gerado a partir da primeira mensagem
+
+---
 
 ### DELETE /api/rep/chat/sessions/:id
-Exclui uma sessão de chat e todo seu histórico.
-Auth: sessão ou JWT | Role: user
-Params: id (número inteiro)
-Response 200: { "success": true }
+Exclui uma sessão de chat e todo seu histórico de mensagens.
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+
+Entrada (Path Params):
+  id: number (obrigatório) — ID inteiro da sessão
+
+Saída 200 (JSON):
+  success: true
+
+Erros:
+  404: { "error": "Sessão não encontrada" }
+
+---
 
 ### GET /api/rep/chat/sessions/:id/messages
 Retorna o histórico de mensagens de uma sessão.
-Auth: sessão ou JWT | Role: user
-Params: id (número inteiro)
-Response 200: Array de objetos com os campos:
-  - id: number — ID da mensagem
-  - role: "user" | "assistant"
-  - content: string — texto da mensagem (para voz: transcrição do áudio)
-  - criadoEm: string (ISO 8601)
-  - hasAudio: boolean — true se a mensagem do usuário foi enviada por voz (player de áudio disponível)
-  - hasTts: boolean — true se o TTS da resposta já foi gerado e está em cache
-  - transcricao: string | null — transcrição do áudio (igual a content, para mensagens de voz)
-  - audioMime: string | null — MIME type do áudio gravado (ex: "audio/webm", "audio/mp4")
-Nota: os blobs de áudio (audio_data, tts_data) NÃO são retornados aqui para não sobrecarregar. Use os endpoints /audio e /tts para obtê-los.
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+
+Entrada (Path Params):
+  id: number (obrigatório) — ID inteiro da sessão
+
+Saída 200 (JSON Array de ChatMessage):
+  id: number — ID da mensagem
+  role: string — "user" | "assistant"
+  content: string — texto da mensagem (em mensagens de voz: transcrição do áudio)
+  criadoEm: string — ISO 8601
+  hasAudio: boolean — true se o usuário enviou áudio gravado (habilitar player)
+  hasTts: boolean — true se o TTS da resposta já está em cache (habilitar reprodução)
+  transcricao: string | null — transcrição do áudio (igual a content para mensagens de voz)
+  audioMime: string | null — MIME type do áudio gravado ("audio/webm", "audio/mp4", "audio/mpeg")
+
+Nota: os binários de áudio (audio_data, tts_data) NÃO são retornados aqui.
+Use GET /api/rep/chat/messages/:id/audio e POST /api/rep/chat/messages/:id/tts para obtê-los.
+
+---
 
 ### GET /api/rep/chat/messages/:id/audio
-Serve o áudio gravado pelo usuário em uma mensagem de voz.
-Auth: sessão ou JWT | Role: user
-Params: id (número inteiro) — ID da mensagem com hasAudio = true
-Response 200: binário de áudio (Content-Type: audio/webm, audio/mp4, audio/mpeg etc.)
-Response 404: mensagem não encontrada ou não possui áudio
-Obs: Cache-Control private, max-age=86400. Usar quando hasAudio = true na mensagem para exibir player de áudio.
+Serve o binário do áudio gravado pelo usuário em uma mensagem de voz.
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+
+Entrada (Path Params):
+  id: number (obrigatório) — ID da mensagem com hasAudio = true
+
+Saída 200: binário de áudio
+  Content-Type: audio/webm | audio/mp4 | audio/mpeg (varia conforme audioMime)
+  Cache-Control: private, max-age=86400
+
+Erros:
+  404: mensagem não encontrada ou não possui áudio
+
+---
 
 ### POST /api/rep/chat/messages/:id/tts
 Gera (ou retorna do cache) o áudio TTS da resposta do assistente.
-Auth: sessão ou JWT | Role: user
-Params: id (número inteiro) — ID da mensagem com role = "assistant"
-Response 200: binário de áudio (Content-Type: audio/mpeg)
-Obs: Na primeira chamada gera e salva no banco (hasTts passa a ser true). Nas chamadas seguintes retorna do cache imediatamente.
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
 
-### POST /api/rep/chat/ws-token
-Gera um token temporário (30 segundos) para abrir a conexão WebSocket.
-Auth: sessão ou JWT | Role: user
-Response 200: { "token": "string (32 chars)" }
+Entrada (Path Params):
+  id: number (obrigatório) — ID da mensagem com role = "assistant"
 
-### WebSocket ws://[host]/ws?token=TOKEN&sessionId=ID
-Conexão WebSocket para o chat em tempo real.
-Query: token (obtido em /api/rep/chat/ws-token), sessionId (número)
-Protocolo:
-  ENVIAR: { "type": "message", "content": "texto da pergunta" }
-  RECEBER: { "type": "chunk", "content": "trecho de texto" } (streaming)
-  RECEBER: { "type": "done" } (fim da resposta)
-  RECEBER: { "type": "tool_call", "name": "nome_da_funcao", "status": "running|done" } (function calling)
-  RECEBER: { "type": "error", "message": "mensagem de erro" }
+Saída 200: binário de áudio
+  Content-Type: audio/mpeg
+  Nota: na primeira chamada gera e salva (hasTts passa a ser true). Chamadas subsequentes retornam do cache.
+
+---
 
 ### POST /api/rep/chat/tts
-Converte texto em áudio (Text-to-Speech via OpenAI).
-Auth: sessão ou JWT | Role: user
-Body: { "text": "string (obrigatório)" }
-Response 200: audio/mpeg binário
-Response 400: text obrigatório
+Converte texto em áudio via TTS (OpenAI).
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+Content-Type: application/json
+
+Entrada (Body JSON):
+  text: string (obrigatório) — texto a ser convertido em áudio
+
+Saída 200: binário de áudio
+  Content-Type: audio/mpeg
+
+Erros:
+  400: { "error": "text é obrigatório" }
+
+---
 
 ### POST /api/rep/chat/transcribe
-Transcreve áudio para texto (Speech-to-Text via OpenAI Whisper).
-Auth: sessão ou JWT | Role: user
-Body: binário de áudio (content-type: audio/* ou application/octet-stream)
-Limit: 25MB
-Response 200: { "text": "string" }
+Transcreve um áudio para texto via Whisper (OpenAI).
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+Content-Type: audio/* | application/octet-stream
+
+Entrada (Body): binário do arquivo de áudio
+  Limite: 25 MB
+  Formatos suportados: webm, mp4, mpeg, wav, ogg, flac, m4a
+
+Saída 200 (JSON):
+  text: string — transcrição do áudio em texto
+
+---
 
 ### GET /api/rep/chat/reports/:reportId
-Retorna um relatório HTML gerado pelo assistente.
-Auth: sessão ou JWT | Role: user
-Params: reportId (string UUID)
-Response 200: HTML do relatório
+Retorna o HTML de um relatório gerado pelo assistente.
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+
+Entrada (Path Params):
+  reportId: string (UUID) — ID do relatório (presente nos eventos do tipo "pdf" e "html_widget")
+
+Saída 200: HTML do relatório (Content-Type: text/html)
+
+---
 
 ### POST /api/rep/chat/reports/:reportId/share
 Gera um link público compartilhável para o relatório.
-Auth: sessão ou JWT | Role: user
-Params: reportId
-Response 200: { "shareToken": "string", "url": "string (URL completa)" }
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
 
-### GET /api/public/report/:shareToken
-Acessa um relatório compartilhado publicamente (sem autenticação).
-Auth: nenhuma (público)
-Params: shareToken
-Response 200: HTML do relatório
+Entrada (Path Params):
+  reportId: string (UUID)
+
+Saída 200 (JSON):
+  shareToken: string — token para acesso público
+  url: string — URL completa para acessar o relatório sem autenticação
 
 ---
 
-## MÓDULO: REPRESENTANTE — PIPELINE DE VENDAS (KANBAN)
+### GET /api/public/report/:shareToken
+Acessa um relatório compartilhado publicamente, sem autenticação.
+Auth: nenhuma (público)
+
+Entrada (Path Params):
+  shareToken: string — obtido em POST /api/rep/chat/reports/:reportId/share
+
+Saída 200: HTML do relatório (Content-Type: text/html)
+
+---
+
+## MÓDULO 14: PIPELINE DE VENDAS (KANBAN)
 
 ### GET /api/rep/pipeline-boards
 Lista os boards Kanban do representante.
-Auth: sessão ou JWT | Role: user
-Response 200: Array de { id: number, representanteId, nome, estagios: [{ id, boardId, nome, cor, ordem }] }
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+
+Entrada: nenhuma
+
+Saída 200 (JSON Array de PipelineBoard):
+  id: number — ID do board
+  representanteId: string
+  nome: string — nome do board
+  estagios: array de PipelineBoardEstagio
+    id: number — ID do estágio
+    boardId: number — ID do board pai
+    nome: string — nome do estágio (ex: "Prospecção", "Proposta", "Fechado")
+    cor: string — cor em hexadecimal (ex: "#6366f1")
+    ordem: number — posição do estágio no board (começa em 1)
+    criadoEm: string — ISO 8601
+
+---
 
 ### POST /api/rep/pipeline-boards
 Cria um novo board Kanban.
-Auth: sessão ou JWT | Role: user
-Body: { "nome": "string (obrigatório)" }
-Response 200: objeto PipelineBoard criado
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+Content-Type: application/json
+
+Entrada (Body JSON):
+  nome: string (obrigatório) — nome do board
+
+Saída 200 (JSON): objeto PipelineBoard criado (ver schema acima, sem estágios inicialmente)
+
+---
 
 ### PUT /api/rep/pipeline-boards/:id
-Renomeia um board.
-Auth: sessão ou JWT | Role: user
-Params: id (número)
-Body: { "nome": "string (obrigatório)" }
-Response 200: { "success": true }
+Renomeia um board existente.
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+
+Entrada (Path Params):
+  id: number (obrigatório) — ID do board
+
+Entrada (Body JSON):
+  nome: string (obrigatório) — novo nome do board
+
+Saída 200 (JSON):
+  success: true
+
+---
 
 ### DELETE /api/rep/pipeline-boards/:id
-Remove um board e todos seus estágios/pipelines.
-Auth: sessão ou JWT | Role: user
-Params: id (número)
-Response 200: { "success": true }
+Remove um board e todos seus estágios e pipelines associados.
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+
+Entrada (Path Params):
+  id: number (obrigatório) — ID do board
+
+Saída 200 (JSON):
+  success: true
+
+---
 
 ### POST /api/rep/pipeline-boards/:boardId/estagios
-Adiciona um estágio ao board.
-Auth: sessão ou JWT | Role: user
-Params: boardId (número)
-Body: { "nome": "string (obrigatório)", "cor": "string (hex, default #6366f1)", "ordem": number (default 0) }
-Response 200: objeto PipelineBoardEstagio criado
+Adiciona um novo estágio a um board.
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+Content-Type: application/json
+
+Entrada (Path Params):
+  boardId: number (obrigatório) — ID do board
+
+Entrada (Body JSON):
+  nome: string (obrigatório) — nome do estágio
+  cor: string (opcional, default "#6366f1") — cor em hexadecimal
+  ordem: number (opcional, default 0) — posição no board
+
+Saída 200 (JSON): objeto PipelineBoardEstagio criado
+  id: number
+  boardId: number
+  nome: string
+  cor: string
+  ordem: number
+  criadoEm: string
+
+---
 
 ### PUT /api/rep/pipeline-boards/estagios/:id
-Atualiza um estágio.
-Auth: sessão ou JWT | Role: user
-Params: id (número)
-Body (opcionais): { "nome": "string", "cor": "string", "ordem": number }
-Response 200: { "success": true }
+Atualiza nome, cor ou ordem de um estágio.
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+
+Entrada (Path Params):
+  id: number (obrigatório) — ID do estágio
+
+Entrada (Body JSON — todos opcionais):
+  nome: string — novo nome
+  cor: string — nova cor hexadecimal
+  ordem: number — nova posição
+
+Saída 200 (JSON):
+  success: true
+
+---
 
 ### DELETE /api/rep/pipeline-boards/estagios/:id
-Remove um estágio.
-Auth: sessão ou JWT | Role: user
-Params: id (número)
-Response 200: { "success": true }
+Remove um estágio de um board.
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+
+Entrada (Path Params):
+  id: number (obrigatório) — ID do estágio
+
+Saída 200 (JSON):
+  success: true
+
+---
+
+### PATCH /api/rep/pipeline-boards/estagios/:id/reorder
+Reordena um estágio. O backend resequencia todos os outros estágios do board automaticamente.
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+Content-Type: application/json
+
+Entrada (Path Params):
+  id: number (obrigatório) — ID do estágio a reordenar
+
+Entrada (Body JSON):
+  ordem: number (obrigatório) — nova posição (inteiro >= 1, <= total de estágios do board)
+
+Saída 200 (JSON):
+  success: true
+  estagios: array de PipelineBoardEstagio — lista completa do board com ordens atualizadas
+    id: number
+    boardId: number
+    nome: string
+    cor: string
+    ordem: number
+    criadoEm: string
+
+Erros:
+  400: { "error": "..." } — "ordem" ausente | não-inteiro | < 1 | > total | estágio não encontrado
+
+---
 
 ### GET /api/rep/pipelines
-Lista pipelines do representante.
-Auth: sessão ou JWT | Role: user
-Response 200: Array de { id, representanteId, nome, boardId, colecaoId, criadoEm }
+Lista os pipelines do representante.
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+
+Entrada: nenhuma
+
+Saída 200 (JSON Array de Pipeline):
+  id: number — ID do pipeline
+  representanteId: string
+  nome: string
+  boardId: number — ID do board ao qual pertence
+  colecaoId: string — ID externo da coleção associada
+  criadoEm: string — ISO 8601
+
+---
 
 ### GET /api/rep/pipelines/:id
 Retorna um pipeline específico.
-Auth: sessão ou JWT | Role: user
-Params: id (número)
-Response 200: objeto Pipeline ou 404
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+
+Entrada (Path Params):
+  id: number (obrigatório) — ID do pipeline
+
+Saída 200 (JSON): objeto Pipeline (mesmo schema do array acima)
+Erros:
+  404: { "error": "Pipeline não encontrado" }
+
+---
 
 ### POST /api/rep/pipelines
 Cria um novo pipeline.
-Auth: sessão ou JWT | Role: user
-Body: { "nome": "string (obrigatório)", "boardId": number (obrigatório), "colecaoId": "string (obrigatório)" }
-Response 200: objeto Pipeline criado
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+Content-Type: application/json
+
+Entrada (Body JSON):
+  nome: string (obrigatório) — nome do pipeline
+  boardId: number (obrigatório) — ID do board ao qual pertence
+  colecaoId: string (obrigatório) — ID externo da coleção
+
+Saída 200 (JSON): objeto Pipeline criado (ver schema acima)
+
+---
 
 ### DELETE /api/rep/pipelines/:id
-Remove um pipeline e todos seus cards.
-Auth: sessão ou JWT | Role: user
-Params: id (número)
-Response 200: { "success": true }
+Remove um pipeline e todos os seus cards.
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+
+Entrada (Path Params):
+  id: number (obrigatório) — ID do pipeline
+
+Saída 200 (JSON):
+  success: true
+
+---
 
 ### GET /api/rep/pipelines/:id/cards
-Lista cards de um pipeline com dados do cliente embutidos.
-Auth: sessão ou JWT | Role: user
-Params: id (número)
-Response 200: Array de { id, pipelineId, estagioId, cliente: { idExterno, nome, fantasia, cidade, uf }, notas, ordem, criadoEm, atualizadoEm }
-Obs: nome=razão social; fantasia=nome fantasia (pode ser null); todos os campos de cliente podem ser null se o cliente não for encontrado no cadastro local.
+Lista os cards de um pipeline com dados do cliente embutidos.
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+
+Entrada (Path Params):
+  id: number (obrigatório) — ID do pipeline (pipelineId)
+
+Saída 200 (JSON Array de PipelineCard):
+  id: number — ID do card
+  pipelineId: number — ID do pipeline
+  estagioId: number — ID do estágio atual do card
+  notas: string | null — observações/notas sobre o cliente
+  ordem: number — posição dentro do estágio
+  criadoEm: string — ISO 8601
+  atualizadoEm: string — ISO 8601
+  cliente:
+    idExterno: string — ID externo do cliente
+    nome: string — razão social (pode ser null se cliente não encontrado)
+    fantasia: string | null — nome fantasia
+    cidade: string | null
+    uf: string | null
+
+---
 
 ### POST /api/rep/pipelines/:id/cards
 Adiciona um card ao pipeline.
-Auth: sessão ou JWT | Role: user
-Params: id (pipelineId)
-Body: { "estagioId": number (obrigatório), "clienteId": "string (obrigatório)", "notas": "string|null", "ordem": number (default 0) }
-Response 200: objeto PipelineCard criado
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+Content-Type: application/json
+
+Entrada (Path Params):
+  id: number (obrigatório) — ID do pipeline (pipelineId)
+
+Entrada (Body JSON):
+  estagioId: number (obrigatório) — ID do estágio inicial do card
+  clienteId: string (obrigatório) — ID externo do cliente
+  notas: string | null (opcional) — observações
+  ordem: number (opcional, default 0) — posição dentro do estágio
+
+Saída 200 (JSON): objeto PipelineCard criado (ver schema acima sem campo "cliente")
+
+---
 
 ### PUT /api/rep/pipeline-cards/:id
-Move um card para outro estágio.
-Auth: sessão ou JWT | Role: user
-Params: id (número do card)
-Body: { "estagioId": number, "ordem": number }
-Response 200: { "success": true }
+Move um card para outro estágio ou altera sua posição.
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+Content-Type: application/json
+
+Entrada (Path Params):
+  id: number (obrigatório) — ID do card
+
+Entrada (Body JSON):
+  estagioId: number (obrigatório) — ID do estágio destino
+  ordem: number (obrigatório) — nova posição dentro do estágio
+
+Saída 200 (JSON):
+  success: true
+
+---
 
 ### DELETE /api/rep/pipeline-cards/:id
-Remove um card.
-Auth: sessão ou JWT | Role: user
-Params: id (número)
-Response 200: { "success": true }
+Remove um card do pipeline.
+Auth: Bearer Token (obrigatório) | Role: user com representanteId
+
+Entrada (Path Params):
+  id: number (obrigatório) — ID do card
+
+Saída 200 (JSON):
+  success: true
 
 ---
 
-## MÓDULO: METAS (Administração — role: master)
+## CÓDIGOS DE ERRO
 
-### GET /api/master/meta-grupos
-Lista todos os grupos de metas.
-Auth: sessão ou JWT | Role: master
-Response 200: Array de MetaGrupo
+400 Bad Request — dados inválidos ou campos obrigatórios ausentes
+  { "error": "mensagem descritiva" }
+  ou { "success": false, "error": "mensagem", "campos": { campo: "motivo" } }
 
-### POST /api/master/meta-grupos
-Cria um grupo de meta.
-Auth: sessão ou JWT | Role: master
-Body: {
-  "nome": "string (obrigatório)",
-  "colecaoIdExterno": "string (obrigatório)",
-  "empresaId": "string (obrigatório)",
-  "bronze": number (peças),
-  "prata": number (peças),
-  "ouro": number (peças),
-  "inicioMeta": "string (ISO date)",
-  "fimMeta": "string (ISO date)"
-}
-Response 201: MetaGrupo criado
-
-### PATCH /api/master/meta-grupos/:id
-Atualiza um grupo de meta.
-Auth: sessão ou JWT | Role: master
-Params: id (número)
-Body (opcionais): mesmos campos do POST
-Response 200: MetaGrupo atualizado
-
-### DELETE /api/master/meta-grupos/:id
-Remove um grupo de meta.
-Auth: sessão ou JWT | Role: master
-Params: id (número)
-Response 200: { "success": true }
-
-### GET /api/master/meta-grupos/:id/reps
-Lista representantes vinculados a um grupo de meta.
-Auth: sessão ou JWT | Role: master
-Params: id (número)
-Response 200: Array de { repId, representanteId, grupoId }
-
-### POST /api/master/meta-grupos/:id/reps
-Vincula representantes a um grupo de meta.
-Auth: sessão ou JWT | Role: master
-Params: id (número)
-Body: { "representanteIds": ["string"] }
-Response 200: { "success": true, "added": number }
-
-### DELETE /api/master/meta-grupos/:id/reps/:repId
-Desvincula um representante de um grupo de meta.
-Auth: sessão ou JWT | Role: master
-Params: id (grupoId), repId (idExterno do representante)
-Response 200: { "success": true }
-
----
-
-## MÓDULO: CONFIGURAÇÃO DO AGENTE (role: master)
-
-### GET /api/master/agent-config
-Retorna todas as configurações do Assistente GT.
-Auth: sessão ou JWT | Role: master
-Response 200: Array de { key, value }
-Chaves disponíveis:
-  - system_prompt: prompt do sistema do assistente
-  - tts_voice: voz do TTS (alloy|echo|fable|onyx|nova|shimmer)
-  - tts_model: modelo TTS (tts-1|tts-1-hd)
-  - tts_speed: velocidade da fala (0.25–4.0, default 1.0)
-  - tts_voice_prompt: prompt para personalização da voz
-
-### PUT /api/master/agent-config
-Atualiza uma configuração do agente.
-Auth: sessão ou JWT | Role: master
-Body: { "key": "string", "value": "string" }
-Response 200: { key, value }
-
----
-
-## MÓDULO: LOGS E TOKENS DO CHAT (role: master)
-
-### GET /api/master/agent-logs
-Lista logs de uso do assistente.
-Auth: sessão ou JWT | Role: master
-Query: representanteId, limit (default 100)
-Response 200: Array de logs de interação
-
-### GET /api/master/agent-logs/representantes
-Lista representantes que já usaram o assistente.
-Auth: sessão ou JWT | Role: master
-Response 200: Array de { representanteId, totalSessoes, totalMensagens }
-
-### GET /api/master/chat-tokens/stats
-Estatísticas de consumo de tokens do chat por período.
-Auth: sessão ou JWT | Role: master
-Response 200: { totalTokens, totalCusto, porRepresentante: [...] }
-
-### GET /api/master/chat-tokens/representantes
-Lista representantes com consumo de tokens.
-Auth: sessão ou JWT | Role: master
-Response 200: Array de { representanteId, tokens, custo }
-
-### GET /api/master/chat-tokens
-Histórico de tokens por sessão.
-Auth: sessão ou JWT | Role: master
-Query: representanteId, limit
-Response 200: Array de registros de tokens por sessão
-
----
-
-## CÓDIGOS DE ERRO COMUNS
-
-400 Bad Request: dados inválidos ou campos obrigatórios ausentes
-  { "error": "mensagem" } ou { "success": false, "error": "mensagem", "campos": { campo: descricao } }
-
-401 Unauthorized: não autenticado ou token expirado
+401 Unauthorized — não autenticado ou token expirado
   { "error": "Nao autenticado" }
+  Ação: chamar POST /api/mobile/refresh com o refreshToken
 
-403 Forbidden: autenticado mas sem permissão
-  { "error": "Acesso restrito ao usuario master" }
+403 Forbidden — autenticado mas sem permissão para o recurso
+  { "error": "Acesso negado" }
 
-404 Not Found: recurso não encontrado
-  { "success": false, "error": "idExterno '...' nao encontrado" }
+404 Not Found — recurso não encontrado
+  { "error": "mensagem" }
 
-409 Conflict: recurso já existe (idExterno duplicado)
-  { "success": false, "error": "idExterno '...' ja existe na entidade ..." }
+409 Conflict — recurso duplicado (idExterno já existe)
+  { "success": false, "error": "idExterno '...' ja existe" }
 
-500 Internal Server Error: erro interno do servidor
+500 Internal Server Error — erro interno
   { "error": "mensagem técnica" }
 
 ---
 
-## CONVENÇÕES
+## CONVENÇÕES IMPORTANTES
 
-- Valores monetários: todos em CENTAVOS (integer). Ex: R$19,90 = 1990
-- Metas de venda: em PEÇAS (unidades), não em reais
-- Timestamps: Unix timestamp em milissegundos (Number)
-- Datas ISO: formato "YYYY-MM-DD" ou "YYYY-MM-DDTHH:mm:ss.sssZ"
-- idExterno: identificador de negócio (string), único por entidade, definido pelo ERP/integração
-- Paginação: page (começa em 1), limit (max 200), resposta inclui total
-- Arrays aceitos: POST nos endpoints ERP aceitam objeto único OU array de objetos
+- Valores monetários: todos em CENTAVOS (integer). Dividir por 100 para exibir em reais.
+  Exemplo: 1990 = R$ 19,90 | 815950 = R$ 8.159,50
+- Metas de venda: em PEÇAS (unidades), NÃO em reais. Nunca confundir.
+- Timestamps: Unix timestamp em milissegundos (Number).
+  Converter: new Date(timestamp).toLocaleDateString("pt-BR")
+- Datas ISO: formato "YYYY-MM-DD" para datas, "YYYY-MM-DDTHH:mm:ss.sssZ" para datetime
+- Paginação: page começa em 1; a resposta inclui total de registros
+- O representanteId do usuário autenticado é aplicado automaticamente pelo backend —
+  nunca é necessário enviá-lo como query param quando autenticado com JWT Bearer
 
 ---
 
-## NOTAS PARA DESENVOLVIMENTO MOBILE
+## FLUXO RECOMENDADO PARA O APP MOBILE
 
-1. Use POST /api/mobile/login para autenticar
-2. Salve accessToken (localStorage/SecureStorage) e refreshToken (SecureStorage)
-3. Envie "Authorization: Bearer <accessToken>" em todas as requisições
-4. Intercepte respostas 401: chame POST /api/mobile/refresh e repita a requisição original
-5. O WebSocket do Assistente GT requer um token temporário: POST /api/rep/chat/ws-token antes de abrir a conexão WS
-6. Para permissões de microfone (TTS/STT): Android necessita RECORD_AUDIO no AndroidManifest.xml; iOS necessita NSMicrophoneUsageDescription no Info.plist
+1. Login: POST /api/mobile/login → salvar accessToken + refreshToken em SecureStorage
+2. Toda requisição: header "Authorization: Bearer <accessToken>"
+3. Ao receber 401: POST /api/mobile/refresh → novo accessToken → reenviar requisição
+4. Ao iniciar tela do chat:
+   a. POST /api/rep/chat/sessions → obter sessionId
+   b. GET /api/rep/chat/sessions/:id/messages → carregar histórico
+   c. POST /api/mobile/chat/message { content, sessionId } → enviar mensagem
+   d. Exibir data.content como resposta do assistente
+   e. Se data.events contiver "pdf" ou "html_widget": oferecer visualização do relatório
+5. Para voz:
+   a. Gravar áudio e transcrever: POST /api/rep/chat/transcribe → obter text
+   b. Enviar transcrição: POST /api/mobile/chat/message { content: text, sessionId }
+   c. Para TTS da resposta: POST /api/rep/chat/messages/:id/tts → reproduzir áudio
+6. Para permissões de microfone no dispositivo:
+   Android: RECORD_AUDIO no AndroidManifest.xml
+   iOS: NSMicrophoneUsageDescription no Info.plist
