@@ -103,6 +103,7 @@ export default function ChatScreen() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isEditingSessions, setIsEditingSessions] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('Aguarde...');
   const [searchSession, setSearchSession] = useState('');
   
   // Audio Configuration (Global Engine)
@@ -162,6 +163,7 @@ export default function ChatScreen() {
   };
 
   const handleOpenReport = async (reportId: string, titulo: string) => {
+    setLoadingMessage('Abrindo relatório...');
     setActionLoading(true);
     try {
       // Step 1: Gerar token de acesso público via endpoint de compartilhamento
@@ -275,6 +277,7 @@ export default function ChatScreen() {
   };
 
   const deleteSession = async (id: number) => {
+    setLoadingMessage('Excluindo conversa...');
     setActionLoading(true);
     try {
       await api.delete(`/api/rep/chat/sessions/${id}`);
@@ -491,7 +494,9 @@ export default function ChatScreen() {
       if (response.status >= 200 && response.status < 300) {
         const body = JSON.parse(response.body);
         if (body.text) {
-          // Enviar para o novo flow síncrono REST v2.0
+          // Remover mensagem temporária ANTES de enviar a real
+          setMessages(prev => prev.filter(m => m.id !== tempId));
+          // Enviar para o novo flow síncrono REST v2.0 (que criará a bolha com o texto real)
           await sendMessage(body.text, false);
         } else {
           setMessages(prev => prev.filter(m => m.id !== tempId));
@@ -501,7 +506,7 @@ export default function ChatScreen() {
       }
     } catch (error: any) {
       console.error('Transcription upload error:', error.message || error);
-      setMessages(prev => [...prev, {
+      setMessages(prev => [...prev.filter(m => m.id !== tempId), {
         id: `err-${Date.now()}`,
         role: 'assistant',
         content: `Houve um erro ao processar o áudio. Tente novamente.`
@@ -691,7 +696,7 @@ export default function ChatScreen() {
                           numberOfLines={2}
                           ellipsizeMode="tail"
                         >
-                          {event.titulo || 'Ver Relatório'}
+                          {event.titulo || event.title || event.caption || 'Ver Relatório'}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -729,7 +734,7 @@ export default function ChatScreen() {
                       numberOfLines={2}
                       ellipsizeMode="tail"
                     >
-                      {item.data?.titulo || 'Ver Relatório'}
+                      {item.data?.titulo || item.data?.title || item.data?.caption || 'Ver Relatório'}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -1040,9 +1045,9 @@ export default function ChatScreen() {
       </Modal>
       {actionLoading && (
         <View style={styles.globalLoader}>
-          <View style={[styles.loaderBox, { backgroundColor: isDark ? 'rgba(44,44,46,0.8)' : 'rgba(255,255,255,0.9)' }]}>
+          <View style={[styles.loaderBox, { backgroundColor: isDark ? 'rgba(44,44,46,0.9)' : 'rgba(255,255,255,0.95)' }]}>
             <ActivityIndicator color={THEME.primary} size="large" />
-            <Text style={[styles.loaderText, { color: THEME.textMain }]}>Excluindo...</Text>
+            <Text style={[styles.loaderText, { color: THEME.textMain }]}>{loadingMessage}</Text>
           </View>
         </View>
       )}
