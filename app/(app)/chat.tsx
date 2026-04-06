@@ -571,11 +571,17 @@ export default function ChatScreen() {
         return;
       }
 
+      // Marcar como ativo IMEDIATAMENTE para o loader aparecer enquanto gera o áudio
+      setActivePlayingId(message.id);
+
       // Switching audio
       const source = await getAudioSource();
-      if (!source) return;
+      if (!source) {
+        // Se falhar ao gerar, resetamos a seleção
+        if (activePlayingId === message.id) setActivePlayingId(null);
+        return;
+      }
 
-      setActivePlayingId(message.id);
       globalPlayer.replace(source);
       globalPlayer.play();
     };
@@ -675,8 +681,16 @@ export default function ChatScreen() {
                         style={styles.eventButton}
                         onPress={() => handleOpenReport(event.reportId || event.widgetId, event.titulo)}
                       >
-                        <Text style={{ fontSize: 16 }}>📊</Text>
-                        <Text style={[styles.eventButtonText, { color: THEME.textMain }]}>
+                        <FontAwesome 
+                          name={event.type === 'pdf' ? "file-pdf-o" : "bar-chart"} 
+                          size={16} 
+                          color={THEME.primary} 
+                        />
+                        <Text 
+                          style={[styles.eventButtonText, { color: THEME.textMain }]}
+                          numberOfLines={2}
+                          ellipsizeMode="tail"
+                        >
                           {event.titulo || 'Ver Relatório'}
                         </Text>
                       </TouchableOpacity>
@@ -694,18 +708,11 @@ export default function ChatScreen() {
                       </TouchableOpacity>
                     );
                   }
-                  if (event.type === 'tool_call') {
-                    return (
-                      <View key={`tool-${idx}`} style={styles.toolCallChip}>
-                        <Ionicons name="construct-outline" size={12} color={THEME.textSecondary} />
-                        <Text style={styles.toolCallText}>
-                          {event.tool === 'get_top_clientes' ? 'Analisando clientes...' : 'Buscando dados...'}
-                        </Text>
-                      </View>
-                    );
-                  }
                   return null;
                 })}
+
+                {/* Agrupar tool_calls em um único chip (Removido por ser redundante em fluxo síncrono) */}
+
 
                 {/* Formato Legado: Para mensagens de antes da atualização do servidor */}
                 {(item.type === 'pdf' || item.type === 'html_widget') && !item.events?.length && (
@@ -716,8 +723,12 @@ export default function ChatScreen() {
                       handleOpenReport(reportId, item.data?.titulo);
                     }}
                   >
-                    <Text style={{ fontSize: 16 }}>📊</Text>
-                    <Text style={[styles.eventButtonText, { color: THEME.textMain }]}>
+                    <FontAwesome name="file-pdf-o" size={16} color={THEME.primary} />
+                    <Text 
+                      style={[styles.eventButtonText, { color: THEME.textMain }]}
+                      numberOfLines={2}
+                      ellipsizeMode="tail"
+                    >
                       {item.data?.titulo || 'Ver Relatório'}
                     </Text>
                   </TouchableOpacity>
@@ -1293,6 +1304,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   eventButtonText: {
+    flex: 1,
     fontSize: 14,
     fontWeight: '500',
   },

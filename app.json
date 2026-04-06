@@ -18,8 +18,10 @@
         "NSMicrophoneUsageDescription": "Precisamos de acesso ao microfone para a funcionalidade do app.",
         "NSLocationWhenInUseUsageDescription": "Precisamos de sua localização para mostrar pontos próximos.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Precisamos de sua localização para funcionamento contínuo.",
-        "NSFaceIDUsageDescription": "Usamos o FaceID para fornecer acesso rápido e seguro ao painel do Grupo Titanium."
-      }
+        "NSFaceIDUsageDescription": "Usamos o FaceID para fornecer acesso rápido e seguro ao painel do Grupo Titanium.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.alandelfino.gtvendas"
     },
     "android": {
       "package": "com.alandelfino.gtvendas",
@@ -32,7 +34,9 @@
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.INTERNET"
+        "android.permission.INTERNET",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
       ],
       "predictiveBackGestureEnabled": false
     },
@@ -46,10 +50,17 @@
       "expo-secure-store",
       "expo-local-authentication",
       "expo-audio",
-      "expo-video"
+      "expo-video",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "7ec2e4cd-0f1a-41c0-b80b-27757ee5cb6a"
+      }
     }
   }
 }

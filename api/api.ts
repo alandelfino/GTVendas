@@ -2,7 +2,12 @@ import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'ax
 import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 
-const API_BASE_URL = 'https://0d8b0788-6dc6-4c83-b907-494ffd52f0e9-00-1wy28f0g3amh1.spock.replit.dev/';
+// URL da Produção (Titanium) e Dev (Replit) agora gerenciadas pelo EAS Build Profiles
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+
+if(!API_BASE_URL){
+  throw new Error('EXPO_PUBLIC_API_URL não está definido');
+}
 
 const api = axios.create({
   baseURL: API_BASE_URL,

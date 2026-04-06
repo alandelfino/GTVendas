@@ -1,0 +1,28 @@
+{
+    "cli": {
+        "version": ">= 10.2.1"
+    },
+    "build": {
+        "development": {
+            "developmentClient": true,
+            "distribution": "internal",
+            "env": {
+                "EXPO_PUBLIC_API_URL": "https://0d8b0788-6dc6-4c83-b907-494ffd52f0e9-00-1wy28f0g3amh1.spock.replit.dev/"
+            }
+        },
+        "preview": {
+            "distribution": "internal",
+            "env": {
+                "EXPO_PUBLIC_API_URL": "https://gtvendas.grupotitaniumjeans.com.br/"
+            }
+        },
+        "production": {
+            "env": {
+                "EXPO_PUBLIC_API_URL": "https://gtvendas.grupotitaniumjeans.com.br/"
+            }
+        }
+    },
+    "submit": {
+        "production": {}
+    }
+}

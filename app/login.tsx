@@ -226,7 +226,13 @@ export default function LoginScreen() {
 
           </View>
 
-          <TouchableOpacity style={styles.forgotButton}>
+          <TouchableOpacity 
+            style={styles.forgotButton}
+            onPress={() => Alert.alert(
+              'Recuperar Senha',
+              'Entre em contato com os administradores para gerar uma nova senha.'
+            )}
+          >
             <Text style={[styles.forgotText, { color: THEME.primary }]}>Esqueceu a senha?</Text>
           </TouchableOpacity>
         </View>
