@@ -160,97 +160,110 @@ export default function BoardManager({
         {!!selectedBoard && (
            <View style={[StyleSheet.absoluteFill, { backgroundColor: THEME.bg, zIndex: 100 }]}>
               <View style={[styles.modalHeader, { borderBottomColor: THEME.border }]}>
+                <TouchableOpacity onPress={() => setSelectedBoard(null)} style={styles.modalLeftAction}>
+                  <Text style={{ color: THEME.accent, fontSize: 17, fontWeight: '400' }}>Voltar</Text>
+                </TouchableOpacity>
                 <View style={styles.modalHandle} />
                 <Text style={[styles.headerTitle, { color: THEME.text }]}>{selectedBoard?.nome}</Text>
-                <TouchableOpacity onPress={() => setSelectedBoard(null)} style={styles.modalClose}>
-                  <Text style={{ color: THEME.accent, fontSize: 17, fontWeight: '600' }}>Concluído</Text>
+                <TouchableOpacity 
+                  onPress={() => { setEditingStage({ boardId: selectedBoard.id, cor: '#0A84FF', ordem: (selectedBoard.estagios.length + 1) }); setStageEditorVisible(true); }} 
+                  style={styles.modalClose}
+                >
+                  <Text style={{ color: THEME.accent, fontSize: 17, fontWeight: '600' }}>Adicionar</Text>
                 </TouchableOpacity>
               </View>
               
-              <View style={{ flex: 1 }}>
-                 <Text style={[styles.sectionLabel, { color: THEME.secondary, paddingHorizontal: 16 }]}>ESTÁGIOS DO KANBAN (ARRASTE PARA REORDENAR)</Text>
-                 <DraggableFlatList
-                    data={[...(selectedBoard?.estagios || [])].sort((a, b) => (Number(a.ordem) || 0) - (Number(b.ordem) || 0))}
-                    onDragEnd={onStageDragEnd}
-                    keyExtractor={(item) => item.id.toString()}
-                    renderItem={({ item, drag, isActive }: RenderItemParams<Stage>) => (
-                      <ScaleDecorator>
-                        <Swipeable
-                           ref={(ref) => {
-                             const key = `stage-${item.id}`;
-                             if (ref) swipeableRefs.current.set(key, ref);
-                             else swipeableRefs.current.delete(key);
-                           }}
-                           renderRightActions={() => renderStageRightActions(item)}
-                           onSwipeableWillOpen={() => {
+              <ScrollView style={{ flex: 1 }}>
+                <Text style={[styles.sectionLabel, { color: THEME.secondary, paddingHorizontal: 16, marginTop: 12 }]}>ESTÁGIOS</Text>
+                
+                <View style={{ padding: 16 }}>
+                  <View style={[styles.insetGroup, { backgroundColor: THEME.card }]}>
+                    <DraggableFlatList
+                      data={[...(selectedBoard?.estagios || [])].sort((a, b) => (Number(a.ordem) || 0) - (Number(b.ordem) || 0))}
+                      onDragEnd={onStageDragEnd}
+                      keyExtractor={(item) => item.id.toString()}
+                      scrollEnabled={false}
+                      renderItem={({ item, drag, isActive }: RenderItemParams<Stage>) => (
+                        <ScaleDecorator>
+                          <Swipeable
+                            ref={(ref) => {
                               const key = `stage-${item.id}`;
-                              if (openRowKey.current !== null && openRowKey.current !== key) {
-                                swipeableRefs.current.get(openRowKey.current)?.close();
-                              }
-                              openRowKey.current = key;
-                           }}
-                        >
-                          <TouchableOpacity
-                            onLongPress={drag}
-                            disabled={isActive}
-                            activeOpacity={1}
-                            style={[
-                              styles.stageEditRow,
-                              { backgroundColor: isActive ? (isDark ? '#2C2C2E' : '#E5E5EA') : THEME.card },
-                              { marginHorizontal: 16, borderRadius: 10, marginBottom: 12 }
-                            ]}
+                              if (ref) swipeableRefs.current.set(key, ref);
+                              else swipeableRefs.current.delete(key);
+                            }}
+                            renderRightActions={() => renderStageRightActions(item)}
+                            onSwipeableWillOpen={() => {
+                               const key = `stage-${item.id}`;
+                               if (openRowKey.current !== null && openRowKey.current !== key) {
+                                 swipeableRefs.current.get(openRowKey.current)?.close();
+                               }
+                               openRowKey.current = key;
+                            }}
                           >
-                            <Ionicons name="ellipse" size={14} color={item.cor} style={{ marginRight: 12 }} />
-                            <Text 
-                               style={{ flex: 1, fontSize: 17, color: THEME.text }}
-                               onPress={() => { closeOpenRow(); setEditingStage(item); setStageEditorVisible(true); }}
+                            <TouchableOpacity
+                              onLongPress={drag}
+                              disabled={isActive}
+                              activeOpacity={1}
+                              onPress={() => { closeOpenRow(); setEditingStage(item); setStageEditorVisible(true); }}
+                              style={[
+                                styles.stageRow,
+                                isActive && { backgroundColor: THEME.border + '50' }
+                              ]}
                             >
-                              {item.nome}
-                            </Text>
-                            <Ionicons name="reorder-three" size={24} color={THEME.secondary} style={{ padding: 4 }} />
-                          </TouchableOpacity>
-                        </Swipeable>
-                      </ScaleDecorator>
-                    )}
-                 />
-              </View>
+                              <View style={[styles.stageOrb, { backgroundColor: item.cor }]} />
+                              <Text style={{ flex: 1, fontSize: 17, color: THEME.text }}>
+                                {item.nome}
+                              </Text>
+                              <View onTouchStart={drag} style={styles.dragHandle}>
+                                <Ionicons name="reorder-three-outline" size={24} color={THEME.secondary} />
+                              </View>
+                            </TouchableOpacity>
+                            <View style={[styles.iosSeparator, { backgroundColor: THEME.border }]} />
+                          </Swipeable>
+                        </ScaleDecorator>
+                      )}
+                    />
+                  </View>
+                </View>
+              </ScrollView>
            </View>
         )}
 
         <Modal visible={!!editingBoard} presentationStyle="pageSheet" animationType="slide">
            <View style={[styles.modalBase, { backgroundColor: THEME.bg }]}>
              <View style={[styles.modalHeader, { borderBottomColor: THEME.border }]}>
+               <TouchableOpacity onPress={() => setEditingBoard(null)} style={styles.modalLeftAction}>
+                 <Text style={{ color: THEME.accent, fontSize: 17, fontWeight: '400' }}>Cancelar</Text>
+               </TouchableOpacity>
                <View style={styles.modalHandle} />
                <Text style={[styles.headerTitle, { color: THEME.text }]}>
                  {editingBoard?.id ? 'Renomear Quadro' : 'Novo Quadro'}
                </Text>
-               <TouchableOpacity onPress={() => setEditingBoard(null)} style={styles.modalClose}>
-                 <Text style={{ color: THEME.accent, fontSize: 17, fontWeight: '400' }}>Cancelar</Text>
+               <TouchableOpacity 
+                 onPress={saveBoard} 
+                 style={styles.modalClose}
+                 disabled={actionLoading}
+               >
+                 {actionLoading ? (
+                   <ActivityIndicator color={THEME.accent} size="small" />
+                 ) : (
+                   <Text style={{ color: THEME.accent, fontSize: 17, fontWeight: '600' }}>Salvar</Text>
+                 )}
                </TouchableOpacity>
              </View>
 
-             <View style={{ padding: 20 }}>
-                <Text style={[styles.sectionLabel, { color: THEME.secondary }]}>NOME DO QUADRO</Text>
-                <TextInput 
-                  style={[styles.sheetInput, { color: THEME.text, backgroundColor: THEME.card, borderColor: THEME.border }]}
-                  placeholder="Ex: Vendas Internas, Leads..."
-                  placeholderTextColor={THEME.secondary}
-                  value={editingBoard?.nome}
-                  onChangeText={v => setEditingBoard({...editingBoard!, nome: v})}
-                  autoFocus
-                />
-
-                <TouchableOpacity 
-                  style={[styles.primaryBtn, { backgroundColor: THEME.accent, opacity: actionLoading ? 0.6 : 1 }]} 
-                  onPress={saveBoard}
-                  disabled={actionLoading}
-                >
-                  {actionLoading ? (
-                    <ActivityIndicator color="#FFF" />
-                  ) : (
-                    <Text style={styles.primaryBtnText}>Salvar Quadro</Text>
-                  )}
-                </TouchableOpacity>
+             <View style={{ padding: 16 }}>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: THEME.secondary, marginLeft: 4, marginBottom: 8, textTransform: 'uppercase' }}>Nome do Quadro</Text>
+                <View style={{ backgroundColor: THEME.card, borderRadius: 10, overflow: 'hidden' }}>
+                    <TextInput 
+                      style={[styles.sheetInput, { color: THEME.text, marginBottom: 0 }]}
+                      placeholder="Ex: Vendas coleção inverno 26"
+                      placeholderTextColor={THEME.secondary + '80'}
+                      value={editingBoard?.nome}
+                      onChangeText={v => setEditingBoard({...editingBoard!, nome: v})}
+                      autoFocus
+                    />
+                </View>
              </View>
            </View>
         </Modal>
@@ -261,6 +274,7 @@ export default function BoardManager({
            onSave={saveStage}
            editingStage={editingStage}
            setEditingStage={setEditingStage}
+           actionLoading={actionLoading}
            THEME={THEME}
         />
 
@@ -287,8 +301,15 @@ const createStyles = (THEME: Theme, isDark: boolean) => StyleSheet.create({
   insetGroup: { borderRadius: 10, overflow: 'hidden' },
   boardRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, height: 54 },
   sectionLabel: { fontSize: 13, fontWeight: '600', marginLeft: 8, marginBottom: 8, marginTop: 24, textTransform: 'uppercase' },
-  stageEditRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, height: 54 },
-  stageColorDot: { width: 10, height: 10, borderRadius: 5, marginRight: 12 },
+  stageRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    paddingLeft: 16,
+    height: 54
+  },
+  stageOrb: { width: 12, height: 12, borderRadius: 6, marginRight: 12 },
+  dragHandle: { paddingHorizontal: 16, height: '100%', justifyContent: 'center' },
+  iosSeparator: { height: StyleSheet.hairlineWidth, marginLeft: 44 },
   alertOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   alertBox: { width: '100%', maxWidth: 300, borderRadius: 14, padding: 20, alignItems: 'center' },
   alertTitle: { fontSize: 17, fontWeight: '700', marginBottom: 16 },

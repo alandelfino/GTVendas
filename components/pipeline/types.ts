@@ -3,6 +3,7 @@ export interface Stage {
   nome: string;
   cor: string;
   ordem: number;
+  boardId?: number;
 }
 
 export interface Board {
