@@ -1,12 +1,12 @@
-import { FontAwesome } from '@expo/vector-icons';
+import { FontAwesome, Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { Stack, useRouter } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Dimensions,
     Image,
-    Modal,
     Pressable,
     RefreshControl,
     ScrollView,
@@ -21,7 +21,10 @@ import { LineChart } from 'react-native-chart-kit';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import api from '../../api/api';
+import { CelebrationModal } from '../../components/dashboard/CelebrationModal';
+import { UserMenu } from '../../components/dashboard/UserMenu';
 import { useAuth } from '../../context/AuthContext';
+import { styles } from '../../src/styles/index.style';
 
 const BronzeTrophy = require('../../assets/images/bronze.png');
 const SilverTrophy = require('../../assets/images/prata.png');
@@ -52,6 +55,7 @@ export default function DashboardScreen() {
     const [selectedMeta, setSelectedMeta] = useState<MetaGrupo | null>(null);
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
+    const [celebration, setCelebration] = useState<{ visible: boolean, level: string, units: number, icon: any } | null>(null);
 
     // Interactive Chart State
     const [tooltipData, setTooltipData] = useState<{ value: number, index: number, x: number, y: number } | null>(null);
@@ -62,7 +66,7 @@ export default function DashboardScreen() {
         text: isDark ? '#FFFFFF' : '#1C252E',
         secondaryText: isDark ? '#8E9AA9' : '#636366',
         navAction: isDark ? '#2C3641' : '#E5E5EA',
-        navText: '#F9B252',
+        navText: isDark ? '#F9B252' : '#3D4956', // Azul Titânio Suave no light
         separator: isDark ? '#3D4956' : '#C6C6C8',
         accent: '#F9B252',
         positive: '#32D74B',
@@ -72,6 +76,40 @@ export default function DashboardScreen() {
     useEffect(() => {
         fetchMetas();
     }, []);
+
+    useEffect(() => {
+        if (selectedMeta) {
+            checkCelebration();
+        }
+    }, [selectedMeta]);
+
+    const checkCelebration = async () => {
+        if (!selectedMeta) return;
+
+        const levels = [
+            { name: 'Bronze', target: selectedMeta.bronze, icon: BronzeTrophy },
+            { name: 'Prata', target: selectedMeta.prata, icon: SilverTrophy },
+            { name: 'Ouro', target: selectedMeta.ouro, icon: GoldTrophy },
+        ];
+
+        // Procurar do mais alto para o mais baixo
+        const reachedLevel = [...levels].reverse().find(l => selectedMeta.totalUnidades >= l.target);
+
+        if (reachedLevel) {
+            const key = `celebrated_${selectedMeta.grupoId}_${reachedLevel.name}`;
+            const alreadyCelebrated = await SecureStore.getItemAsync(key);
+
+            if (!alreadyCelebrated) {
+                setCelebration({
+                    visible: true,
+                    level: reachedLevel.name,
+                    units: Math.floor(selectedMeta.totalUnidades),
+                    icon: reachedLevel.icon
+                });
+                await SecureStore.setItemAsync(key, 'true');
+            }
+        }
+    };
 
     const fetchMetas = async () => {
         try {
@@ -194,14 +232,41 @@ export default function DashboardScreen() {
         const goldPct = Math.min(Math.round((totalUnits / ouro) * 100), 100);
 
         const LevelPill = ({ icon, percent, label, tint, value }: { icon: any, percent: number, label: string, tint: string, value: number }) => (
-            <View style={[styles.levelPill, { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF', borderColor: isDark ? '#2C2C2E' : '#E5E5EA' }]}>
-                <View style={[styles.pillIconBg, { backgroundColor: tint + (isDark ? '30' : '15') }]}>
-                    <Image source={icon} style={styles.pillIcon} />
+            <View style={[
+                styles.levelPill, 
+                { 
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    paddingVertical: 14,
+                    paddingHorizontal: 4,
+                    backgroundColor: isDark ? '#1C252E' : '#FFFFFF', 
+                    borderColor: percent === 100 ? THEME.accent : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'),
+                    minHeight: 135,
+                    position: 'relative',
+                    borderWidth: 1,
+                }
+            ]}>
+                {percent === 100 && (
+                    <View style={{ position: 'absolute', top: 6, right: 6 }}>
+                        <Ionicons name="checkmark-circle" size={16} color={THEME.accent} />
+                    </View>
+                )}
+                
+                <View style={[styles.pillIconBg, { backgroundColor: tint + (isDark ? '20' : '10'), marginBottom: 8, marginRight: 0, width: 40, height: 40, borderRadius: 20 }]}>
+                    <Image source={icon} style={[styles.pillIcon, { width: 24, height: 24 }]} />
                 </View>
-                <View>
-                    <Text style={[styles.pillPercent, { color: THEME.text }]}>{percent}%</Text>
-                    <Text style={[styles.pillLabel, { color: THEME.secondaryText }]}>{value}</Text>
-                </View>
+
+                <Text style={{ fontSize: 10, fontWeight: '800', color: THEME.secondaryText, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+                    {label}
+                </Text>
+                
+                <Text style={[styles.pillPercent, { color: percent === 100 ? THEME.accent : THEME.text, fontSize: 16, marginBottom: 2 }]}>
+                    {percent}%
+                </Text>
+                
+                <Text style={[styles.pillLabel, { color: THEME.secondaryText, fontSize: 11, opacity: 0.7 }]}>
+                    {value.toLocaleString('pt-BR')} un
+                </Text>
             </View>
         );
 
@@ -219,7 +284,7 @@ export default function DashboardScreen() {
                         <Path
                             d={`M ${strokeWidth / 2} ${size / 2} A ${radius} ${radius} 0 0 1 ${size - strokeWidth / 2} ${size / 2}`}
                             fill="none"
-                            stroke={THEME.navText}
+                            stroke={THEME.accent}
                             strokeWidth={strokeWidth}
                             strokeDasharray={`${circumference} ${circumference}`}
                             strokeDashoffset={strokeDashoffset}
@@ -229,8 +294,8 @@ export default function DashboardScreen() {
                     <View style={styles.gaugeContent}>
                         <Text style={[styles.gaugeUnits, { color: THEME.text }]}>{totalUnits.toLocaleString('pt-BR')}</Text>
                         <Text style={[styles.gaugeSublabel, { color: THEME.secondaryText }]}>unidades vendidas</Text>
-                        <View style={[styles.rumoContainer, { backgroundColor: THEME.navText + '15' }]}>
-                           <Text style={[styles.rumoAo, { color: THEME.navText }]}>rumo ao {nextLevelName}</Text>
+                        <View style={[styles.rumoContainer, { backgroundColor: THEME.accent + '15' }]}>
+                           <Text style={[styles.rumoAo, { color: THEME.accent }]}>rumo ao {nextLevelName}</Text>
                         </View>
                     </View>
                 </View>
@@ -312,10 +377,32 @@ export default function DashboardScreen() {
             >
                 <View style={styles.headerTitleArea}>
                     <Text style={[styles.userName, { color: THEME.text }]}>Olá, {user?.nomeCompleto?.split(' ')[0] || user?.username || ''}</Text>
-                    <Text style={[styles.headerSubtitle, { color: THEME.secondaryText }]}>
-                        {selectedMeta?.grupoNome || ''}
-                    </Text>
-                    <Text style={[{ fontSize: 12, marginTop: 2}, { color: THEME.secondaryText }]}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+                        <View style={{ 
+                            backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#FFFFFF', 
+                            paddingHorizontal: 10, 
+                            paddingVertical: 3, 
+                            borderRadius: 6,
+                            borderWidth: 1,
+                            borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#E5E5EA',
+                            shadowColor: '#000',
+                            shadowOffset: { width: 0, height: 1 },
+                            shadowOpacity: isDark ? 0 : 0.05,
+                            shadowRadius: 2,
+                            elevation: 1
+                        }}>
+                            <Text style={{ 
+                                fontSize: 11, 
+                                fontWeight: '700', 
+                                color: THEME.navText,
+                                textTransform: 'uppercase',
+                                letterSpacing: 0.6
+                            }}>
+                                {selectedMeta?.grupoNome || ''}
+                            </Text>
+                        </View>
+                    </View>
+                    <Text style={[{ fontSize: 12, marginTop: 8}, { color: THEME.secondaryText }]}>
                         {selectedMeta ? formatDateRange(selectedMeta.inicioMeta, selectedMeta.fimMeta) : '...'}
                     </Text>
                 </View>
@@ -446,7 +533,7 @@ export default function DashboardScreen() {
                 )}
 
                 <View style={styles.footer}>
-                    <Text style={[styles.footerText, { color: THEME.secondaryText }]}>© 2026 - Marca registrada Grupo Titanium </Text>
+                    <Text style={[styles.footerText, { color: THEME.secondaryText }]}>© 2026 - Grupo Titanium </Text>
                 </View>
             </ScrollView>
 
@@ -494,466 +581,32 @@ export default function DashboardScreen() {
                 </View>
             </View>
 
-            {/* iOS Modal Menu */}
-            <Modal 
-                visible={showUserMenu} 
-                animationType="fade" 
-                transparent={true}
-            >
-                <Pressable 
-                    style={styles.iosModalOverlay} 
-                    onPress={() => setShowUserMenu(false)}
-                >
-                    <View style={[
-                        styles.iosMenuSheet, 
-                        { 
-                            backgroundColor: isDark ? '#1C1C1E' : '#F2F2F7',
-                            paddingBottom: Math.max(40, insets.bottom),
-                        }
-                    ]}>
-                        <View style={styles.menuHeader}>
-                            <View style={[styles.menuAvatarLarge, { backgroundColor: isDark ? '#2C2C2E' : '#FFFFFF' }]}>
-                                <Text style={[styles.avatarLabelLarge, { color: THEME.navText }]}>{(user?.nomeCompleto || user?.username || 'U').charAt(0)}</Text>
-                            </View>
-                            <Text style={[styles.menuName, { color: THEME.text }]}>{user?.nomeCompleto || user?.username}</Text>
-                            <Text style={[styles.menuRole, { color: THEME.secondaryText }]}>{user?.role || 'Representante Comercial'}</Text>
-                        </View>
-                        <View style={[styles.menuSeparator, { backgroundColor: THEME.separator }]} />
-                        <TouchableOpacity 
-                            style={[styles.menuActionItem, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: THEME.separator }]} 
-                            onPress={() => { setShowUserMenu(false); router.push('/profile'); }}
-                        >
-                            <Text style={[styles.logoutText, { color: THEME.navText }]}>Ver Meu Perfil</Text>
-                            <FontAwesome name="user-circle" size={18} color={THEME.navText} />
-                        </TouchableOpacity>
+                        {/* iOS Modal Menu */}
+            <UserMenu 
+                visible={showUserMenu}
+                onClose={() => setShowUserMenu(false)}
+                isDark={isDark}
+                insets={insets}
+                user={user}
+                THEME={THEME}
+                handleLogout={handleLogout}
+                router={router}
+                styles={styles}
+            />
 
-                        <TouchableOpacity style={styles.menuActionItem} onPress={handleLogout}>
-                            <Text style={[styles.logoutText, { color: THEME.danger }]}>Sair da Conta</Text>
-                            <FontAwesome name="sign-out" size={18} color={THEME.danger} />
-                        </TouchableOpacity>
-                    </View>
-                </Pressable>
-            </Modal>
+            {/* Celebration Modal */}
+            {celebration && (
+                <CelebrationModal
+                    visible={celebration.visible}
+                    onClose={() => setCelebration(null)}
+                    level={celebration.level}
+                    units={celebration.units}
+                    trophyIcon={celebration.icon}
+                    isDark={isDark}
+                    THEME={THEME}
+                />
+            )}
         </View>
     );
 }
 
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    topNav: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingTop: 60,
-        paddingHorizontal: 20,
-        paddingBottom: 10,
-    },
-    navAction: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 20,
-    },
-    navActionText: {
-        marginLeft: 6,
-        fontSize: 14,
-        fontWeight: '600',
-    },
-    navProfile: {
-        padding: 2,
-    },
-    avatarMini: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    avatarInitial: {
-        color: '#FFF',
-        fontSize: 14,
-        fontWeight: '700',
-    },
-    scrollContent: {
-        paddingBottom: 100,
-    },
-    headerTitleArea: {
-        paddingHorizontal: 20,
-        paddingTop: 10,
-        marginBottom: 25,
-    },
-    userName: {
-        fontSize: 34,
-        fontWeight: '700',
-        letterSpacing: -0.5,
-    },
-    headerSubtitle: {
-        fontSize: 17,
-        marginTop: 2,
-        fontWeight: '400',
-        opacity: 1,
-    },
-    sectionGroup: {
-        paddingHorizontal: 20,
-    },
-    metaHeader: {
-        marginBottom: 16,
-    },
-    metaTitle: {
-        fontSize: 20,
-        fontWeight: '600',
-    },
-    metaDate: {
-        fontSize: 13,
-        marginTop: 2,
-        fontWeight: '400',
-    },
-    iosCardMain: {
-        borderRadius: 24,
-        padding: 24,
-        marginBottom: 0,
-        backgroundColor: 'transparent',
-    },
-    gaugeHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 20,
-    },
-    cardTag: {
-        fontSize: 12,
-        fontWeight: '700',
-        letterSpacing: 0.5,
-    },
-    gaugeContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginTop: 10,
-        marginBottom: 20,
-    },
-    gaugeContent: {
-        position: 'absolute',
-        top: '40%',
-        alignItems: 'center',
-    },
-    gaugeUnits: {
-        fontSize: 44,
-        fontWeight: '800',
-        letterSpacing: -1,
-    },
-    gaugeSublabel: {
-        fontSize: 12,
-        fontWeight: '500',
-        marginTop: -2,
-        opacity: 0.6,
-        textTransform: 'uppercase',
-    },
-    rumoContainer: {
-        marginTop: 8,
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 8,
-    },
-    rumoAo: {
-        fontSize: 11,
-        fontWeight: '700',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-    },
-    gaugeMetaName: {
-        fontSize: 11,
-        fontWeight: '700',
-        marginTop: 4,
-        textAlign: 'center',
-    },
-    gaugeMetaDate: {
-        fontSize: 10,
-        fontWeight: '400',
-        marginTop: 0,
-        opacity: 0.8,
-    },
-    pillsContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        width: '100%',
-        marginTop: 20,
-        gap: 10,
-    },
-    levelPill: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 8,
-        borderRadius: 20,
-        borderWidth: 1,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 5,
-        elevation: 2,
-    },
-    pillIconBg: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 6,
-    },
-    pillIcon: {
-        width: 16,
-        height: 16,
-        resizeMode: 'contain',
-    },
-    pillPercent: {
-        fontSize: 14,
-        fontWeight: '700',
-    },
-    pillLabel: {
-        fontSize: 12,
-        fontWeight: '400',
-    },
-    levelBadge: {
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 8,
-    },
-    levelBadgeText: {
-        fontSize: 11,
-        fontWeight: '700',
-        letterSpacing: 0.5,
-    },
-    iosCard: {
-        borderRadius: 24,
-        padding: 16,
-        marginBottom: 16,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.08,
-        shadowRadius: 15,
-        elevation: 6,
-    },
-    verticalLine: {
-        position: 'absolute',
-        width: 2,
-        opacity: 0.5,
-        zIndex: 1,
-        top: 40,
-        height: 130,
-    },
-    chartTooltip: {
-        position: 'absolute',
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 10,
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 10,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 5,
-        elevation: 10,
-        minWidth: 80,
-    },
-    tooltipMonth: {
-        fontSize: 10,
-        fontWeight: '700',
-        color: '#AEAEB2',
-        marginBottom: 2,
-        textTransform: 'uppercase',
-    },
-    tooltipValue: {
-        fontSize: 14,
-        fontWeight: '800',
-        color: '#FFFFFF',
-    },
-    forecastSection: {
-        marginTop: 10,
-    },
-    sectionTitle: {
-        fontSize: 13,
-        fontWeight: '600',
-        marginBottom: 12,
-        marginLeft: 4,
-        letterSpacing: 0.5,
-    },
-    forecastCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 16,
-        borderRadius: 16,
-    },
-    forecastIconBg: {
-        width: 36,
-        height: 36,
-        borderRadius: 10,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12,
-    },
-    forecastInfo: {
-        flex: 1,
-    },
-    forecastSubtext: {
-        fontSize: 12,
-        marginBottom: 2,
-    },
-    forecastMainValue: {
-        fontSize: 20,
-        fontWeight: '700',
-    },
-    iosAlertCard: {
-        flexDirection: 'row',
-        padding: 16,
-        borderRadius: 20,
-        marginTop: 16,
-        borderWidth: 1,
-        alignItems: 'center',
-    },
-    alertIconBg: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12,
-    },
-    alertContent: {
-        flex: 1,
-    },
-    alertTitle: {
-        fontSize: 14,
-        fontWeight: '700',
-        marginBottom: 2,
-    },
-    alertDescription: {
-        fontSize: 13,
-        lineHeight: 18,
-    },
-    emptyContainer: {
-        padding: 60,
-        alignItems: 'center',
-    },
-    emptyText: {
-        fontSize: 17,
-        marginTop: 12,
-        marginBottom: 16,
-    },
-    historyLinkText: {
-        fontSize: 16,
-        fontWeight: '600',
-    },
-    iosFab: {
-        position: 'absolute',
-        bottom: 34,
-        right: 20,
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 9999,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 15,
-        elevation: 15,
-    },
-    iosModalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.3)',
-        justifyContent: 'flex-end',
-    },
-    iosMenuSheet: {
-        width: '100%',
-        borderTopLeftRadius: 30,
-        borderTopRightRadius: 30,
-        padding: 24,
-    },
-    menuHeader: {
-        alignItems: 'center',
-        marginBottom: 24,
-    },
-    menuAvatarLarge: {
-        width: 72,
-        height: 72,
-        borderRadius: 36,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 12,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 10,
-        elevation: 5,
-    },
-    avatarLabelLarge: {
-        fontSize: 28,
-        fontWeight: '700',
-    },
-    menuName: {
-        fontSize: 22,
-        fontWeight: '700',
-    },
-    menuRole: {
-        fontSize: 14,
-        marginTop: 2,
-    },
-    menuSeparator: {
-        height: StyleSheet.hairlineWidth,
-        marginHorizontal: -24,
-    },
-    menuActionItem: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 18,
-    },
-    logoutText: {
-        fontSize: 17,
-        fontWeight: '600',
-    },
-    footer: {
-        paddingVertical: 40,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 20,
-    },
-    footerText: {
-        fontSize: 12,
-        fontWeight: '500',
-        letterSpacing: 1,
-        textTransform: 'capitalize',
-    },
-    fixedBottomNav: {
-        position: 'absolute',
-        bottom: 0,
-        width: '100%',
-        zIndex: 1000,
-    },
-    navInner: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        alignItems: 'center',
-        height: 60,
-        borderTopWidth: 0.5,
-    },
-    navButtonItem: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    navButtonLabel: {
-        fontSize: 10,
-        marginTop: 4,
-        fontWeight: '600',
-    },
-});

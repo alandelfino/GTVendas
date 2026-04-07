@@ -19,9 +19,12 @@ import {
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 import { useAuth } from '../context/AuthContext';
-import { FontAwesome } from '@expo/vector-icons';
+import { FontAwesome, Ionicons } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
+
+// Flag to ensure auto-login only happens on first app mount, not after logout
+let isInitialLoad = true;
 
 export default function LoginScreen() {
     const [username, setUsername] = useState('');
@@ -49,6 +52,8 @@ export default function LoginScreen() {
 
   useEffect(() => {
     checkBiometrics();
+    // After the first check, we disable auto-authenticating until the app is restarted
+    return () => { isInitialLoad = false; };
   }, []);
 
   async function checkBiometrics() {
@@ -60,9 +65,9 @@ export default function LoginScreen() {
       setBiometricSupported(true);
       setAuthType(types);
       
-      // Auto-trigger ONLY if user explicitly enabled it previously
+      // Auto-trigger ONLY on initial app load and if user explicitly enabled it previously
       const isEnabled = await SecureStore.getItemAsync('faceid_enabled');
-      if (isEnabled === 'true') {
+      if (isEnabled === 'true' && isInitialLoad) {
         handleBiometricAuth();
       }
     }
@@ -117,7 +122,7 @@ export default function LoginScreen() {
       if (biometricSupported && faceIdStatus !== 'true' && faceIdStatus !== 'declined') {
         Alert.alert(
           'Acesso Rápido',
-          'Deseja utilizar o FaceID para seus próximos acessos ao Grupo Titanium?',
+          'Deseja utilizar a biometria para seus próximos acessos ao Grupo Titanium?',
           [
             { 
               text: 'Agora Não', 
@@ -125,11 +130,21 @@ export default function LoginScreen() {
               onPress: async () => await SecureStore.setItemAsync('faceid_enabled', 'declined') 
             },
             { 
-              text: 'Ativar FaceID', 
+              text: 'Ativar Biometria', 
               onPress: async () => {
-                await SecureStore.setItemAsync('faceid_enabled', 'true');
-                await SecureStore.setItemAsync('saved_id', username);
-                await SecureStore.setItemAsync('saved_pass', password);
+                // EXIGIR SCAN PARA ATIVAR
+                const verification = await LocalAuthentication.authenticateAsync({
+                  promptMessage: 'Confirme sua biometria para ativar o acesso rápido',
+                });
+
+                if (verification.success) {
+                  await SecureStore.setItemAsync('faceid_enabled', 'true');
+                  await SecureStore.setItemAsync('saved_id', username);
+                  await SecureStore.setItemAsync('saved_pass', password);
+                  Alert.alert('Sucesso', 'FaceID ativado com sucesso!');
+                } else {
+                  Alert.alert('Aviso', 'Biometria não confirmada. Ativação cancelada.');
+                }
               }
             }
           ]
@@ -223,7 +238,6 @@ export default function LoginScreen() {
                 <Text style={styles.loginButtonText}>Acessar Conta</Text>
               )}
             </Pressable>
-
           </View>
 
           <TouchableOpacity 

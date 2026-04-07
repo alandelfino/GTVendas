@@ -1,24 +1,22 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
-  useColorScheme, 
-  ActivityIndicator,
-  Dimensions,
-  RefreshControl,
-  Modal,
-  TextInput,
-  FlatList
-} from 'react-native';
+import { FontAwesome, Ionicons } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FontAwesome } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Dimensions,
+    FlatList,
+    Modal,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    useColorScheme,
+    View
+} from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
-import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../../api/api';
 
 const { width } = Dimensions.get('window');
@@ -69,6 +67,7 @@ export default function AnalyticsScreen() {
     text: isDark ? '#FFFFFF' : '#1C252E',
     secondary: isDark ? '#8E9AA9' : '#636366',
     border: isDark ? '#3D4956' : '#C6C6C8',
+    primary: isDark ? '#F9B252' : '#3D4956',
     accent: '#F9B252',
     green: '#32D74B',
     orange: '#F9B252',
@@ -193,6 +192,7 @@ export default function AnalyticsScreen() {
         headerTransparent: true,
         headerBlurEffect: isDark ? 'dark' : 'light',
         headerStyle: { backgroundColor: THEME.bg },
+        headerBackTitleStyle: { fontFamily: THEME.primary },
       }} />
 
       {loading && !refreshing ? (
@@ -398,7 +398,14 @@ export default function AnalyticsScreen() {
         </ScrollView>
       )}
 
-      <Modal visible={colModalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setColModalVisible(false)}>
+      <Modal 
+        visible={colModalVisible} 
+        animationType="slide" 
+        presentationStyle="pageSheet" 
+        // @ts-ignore
+        sheetAllowedDetents={['medium', 'large']}
+        onRequestClose={() => setColModalVisible(false)}
+      >
         <View style={[styles.modalBase, { backgroundColor: THEME.bg }]}>
           <View style={[styles.modalHeader, { borderBottomColor: THEME.border }]}>
             <TouchableOpacity onPress={() => setColModalVisible(false)} style={styles.modalCancel}>

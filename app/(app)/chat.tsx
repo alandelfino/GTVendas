@@ -72,7 +72,7 @@ export default function ChatScreen() {
   const isDark = colorScheme === 'dark';
 
   const THEME = {
-    primary: '#F9B252',
+    primary: isDark ? '#F9B252' : '#3D4956',
     background: isDark ? '#1C252E' : '#F2F2F7',
     assistantBubble: isDark ? '#2C3641' : '#FFFFFF',
     userBubble: '#F9B252',
@@ -950,6 +950,8 @@ export default function ChatScreen() {
         visible={isHistoryOpen}
         animationType="slide"
         presentationStyle="pageSheet"
+        // @ts-ignore
+        sheetAllowedDetents={['medium', 'large']}
         onRequestClose={() => setIsHistoryOpen(false)}
       >
         <View style={[styles.historyModalContainer, { backgroundColor: THEME.background }]}>
