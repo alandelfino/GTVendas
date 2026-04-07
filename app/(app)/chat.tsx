@@ -345,13 +345,19 @@ export default function ChatScreen() {
       });
 
       const { messageId, content, events } = response.data;
+      
+      console.log('\n--- [CHAT DEBUG] RESPOSTA DO ASSISTENTE ---');
+      console.log('ID:', messageId);
+      console.log('TEXTO:', content);
+      console.log('EVENTOS:', JSON.stringify(events, null, 2));
+      console.log('------------------------------------------\n');
 
       // Log dos links de relatórios gerados
       if (events && events.length > 0) {
         events.forEach((event: any) => {
           if (event.type === 'pdf' || event.type === 'html_widget') {
             const reportUrl = `${api.defaults.baseURL}/api/rep/chat/reports/${event.reportId || event.widgetId}`;
-            console.log(`\n--- [CHAT REPORT LINK] ---\n${reportUrl}\n-------------------------\n`);
+            console.log(`[CHAT LOG] Link Relatório: ${reportUrl} | Título Original: ${event.titulo || event.title || event.name}`);
           }
         });
       }
@@ -679,24 +685,23 @@ export default function ChatScreen() {
               <View style={styles.eventsContainer}>
                 {/* Formato Novo: Array de eventos */}
                 {item.events?.map((event, idx) => {
+                  const resolvedTitle = event.titulo || event.title || event.name || event.label || event.caption || 'Sem Título';
                   if (event.type === 'pdf' || event.type === 'html_widget') {
                     return (
                       <TouchableOpacity 
                         key={`evt-${idx}`}
                         style={styles.eventButton}
-                        onPress={() => handleOpenReport(event.reportId || event.widgetId, event.titulo)}
+                        onPress={() => handleOpenReport(event.reportId || event.widgetId, resolvedTitle)}
                       >
-                        <FontAwesome 
-                          name={event.type === 'pdf' ? "file-pdf-o" : "bar-chart"} 
-                          size={16} 
-                          color={THEME.primary} 
-                        />
-                        <Text 
-                          style={[styles.eventButtonText, { color: THEME.textMain }]}
-                          numberOfLines={2}
-                          ellipsizeMode="tail"
-                        >
-                          {event.titulo || event.title || event.caption || 'Ver Relatório'}
+                        <View style={{ width: 22, alignItems: 'center' }}>
+                          <FontAwesome 
+                            name={event.type === 'pdf' ? "file-pdf-o" : "bar-chart"} 
+                            size={18} 
+                            color={THEME.primary} 
+                          />
+                        </View>
+                        <Text style={[styles.eventButtonText, { color: THEME.primary }]} numberOfLines={2} ellipsizeMode="tail">
+                          Relatório: {resolvedTitle}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -708,16 +713,15 @@ export default function ChatScreen() {
                         style={styles.eventButton}
                         onPress={() => Linking.openURL(event.mapsUrl)}
                       >
-                        <Ionicons name="map-outline" size={16} color={THEME.primary} />
-                        <Text style={[styles.eventButtonText, { color: THEME.textMain }]}>Ver no mapa</Text>
+                        <View style={{ width: 22, alignItems: 'center' }}>
+                          <Ionicons name="map-outline" size={18} color={THEME.primary} />
+                        </View>
+                        <Text style={[styles.eventButtonText, { color: THEME.primary }]}>Ver no mapa</Text>
                       </TouchableOpacity>
                     );
                   }
                   return null;
                 })}
-
-                {/* Agrupar tool_calls em um único chip (Removido por ser redundante em fluxo síncrono) */}
-
 
                 {/* Formato Legado: Para mensagens de antes da atualização do servidor */}
                 {(item.type === 'pdf' || item.type === 'html_widget') && !item.events?.length && (
@@ -725,16 +729,15 @@ export default function ChatScreen() {
                     style={styles.eventButton}
                     onPress={() => {
                       const reportId = item.data?.reportId || item.data?.widgetId || item.id;
-                      handleOpenReport(reportId, item.data?.titulo);
+                      const legacyTitle = item.data?.titulo || item.data?.title || item.data?.name || item.data?.label || item.data?.caption || 'Sem Título';
+                      handleOpenReport(reportId, legacyTitle);
                     }}
                   >
-                    <FontAwesome name="file-pdf-o" size={16} color={THEME.primary} />
-                    <Text 
-                      style={[styles.eventButtonText, { color: THEME.textMain }]}
-                      numberOfLines={2}
-                      ellipsizeMode="tail"
-                    >
-                      {item.data?.titulo || item.data?.title || item.data?.caption || 'Ver Relatório'}
+                    <View style={{ width: 22, alignItems: 'center' }}>
+                      <FontAwesome name="file-pdf-o" size={18} color={THEME.primary} />
+                    </View>
+                    <Text style={[styles.eventButtonText, { color: THEME.primary }]} numberOfLines={2} ellipsizeMode="tail">
+                      Relatório: {item.data?.titulo || item.data?.title || item.data?.name || item.data?.label || item.data?.caption || 'Sem Título'}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -1298,22 +1301,26 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   eventsContainer: {
-    marginTop: 8,
+    marginTop: 10,
     gap: 8,
     width: '100%',
   },
   eventButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(249, 178, 82, 0.1)',
-    padding: 10,
-    borderRadius: 8,
-    gap: 10,
+    backgroundColor: 'rgba(249, 178, 82, 0.12)',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(249, 178, 82, 0.2)',
+    gap: 12,
   },
   eventButtonText: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '500',
+    flexShrink: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    lineHeight: 20,
   },
   toolCallChip: {
     flexDirection: 'row',
