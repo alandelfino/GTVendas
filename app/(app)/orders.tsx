@@ -2,11 +2,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-    ActionSheetIOS,
     ActivityIndicator,
     Dimensions,
     FlatList,
-    Linking,
     Modal,
     RefreshControl,
     ScrollView,
@@ -14,8 +12,7 @@ import {
     Text,
     TouchableOpacity,
     useColorScheme,
-    View,
-    Platform
+    View
 } from 'react-native';
 import api from '../../api/api';
 
@@ -84,11 +81,9 @@ export default function OrdersScreen() {
     border: isDark ? '#3D4956' : '#E5E5EA',
     accent: '#F9B252',
     primary: isDark ? '#F9B252' : '#3D4956', 
-    green: '#34C759',
-    red: '#FF3B30',
-    orange: '#F9B252',
-    separator: isDark ? '#3D4956' : '#C6C6C8',
-    itemBg: isDark ? '#2C3641' : '#FFFFFF',
+    positive: '#34C759',
+    danger: '#FF3B30',
+    separator: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
   };
 
   const fetchOrders = async (isRefresh = false) => {
@@ -122,7 +117,6 @@ export default function OrdersScreen() {
       const response = await api.get(`/api/erp/pedidos/${orderId}`);
       const rawData = response.data.data || response.data;
       if (rawData) {
-        // Normalization here... (simplified)
         setSelectedOrderDetail(rawData);
       }
     } catch (error) {
@@ -134,9 +128,9 @@ export default function OrdersScreen() {
 
   const getStatusColor = (status: string | null | undefined) => {
     const s = (status || '').toLowerCase();
-    if (s.includes('faturado') || s.includes('pago')) return THEME.green;
-    if (s.includes('cancelado')) return THEME.red;
-    return THEME.orange;
+    if (s.includes('faturado') || s.includes('pago')) return THEME.positive;
+    if (s.includes('cancelado')) return THEME.danger;
+    return THEME.accent;
   };
 
   const formatCurrency = (cents: number | undefined) => {
@@ -153,17 +147,28 @@ export default function OrdersScreen() {
 
   const renderOrderItem = ({ item }: { item: Order }) => (
     <TouchableOpacity 
+      activeOpacity={0.7}
       style={[styles.itemRow, { backgroundColor: THEME.card }]}
       onPress={() => fetchOrderDetail(item.idExterno)}
     >
-      <View style={[styles.statusIconCircle, { backgroundColor: getStatusColor(item.status) + '15' }]}>
-        <Ionicons name="cart" size={22} color={getStatusColor(item.status)} />
+      <View style={styles.itemContent}>
+        <View style={styles.itemMainInfo}>
+           <Text style={[styles.itemCustomerName, { color: THEME.text }]} numberOfLines={1}>
+              {item.cliente?.fantasia}
+           </Text>
+           <Text style={[styles.itemSubDetail, { color: THEME.secondary }]}>
+              {new Date(item.cadastradoEm).toLocaleDateString('pt-BR')}
+           </Text>
+        </View>
+        
+        <View style={styles.itemRightSide}>
+           <Text style={[styles.itemPriceText, { color: THEME.text }]}>{formatCurrency(item.valorTotal)}</Text>
+           <View style={[styles.statusBadgeSmall, { backgroundColor: getStatusColor(item.status) + '15' }]}>
+              <Text style={[styles.statusTextSmall, { color: getStatusColor(item.status) }]}>{item.status}</Text>
+           </View>
+        </View>
+        <Ionicons name="chevron-forward" size={14} color="#C4C4C6" style={{ marginLeft: 12 }} />
       </View>
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.itemCustomerName, { color: THEME.text }]} numberOfLines={1}>{item.cliente?.fantasia}</Text>
-        <Text style={[styles.itemPriceID, { color: THEME.secondary }]}>Pedido {item.idExterno} • {formatCurrency(item.valorTotal)}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={14} color={THEME.border} />
     </TouchableOpacity>
   );
 
@@ -172,28 +177,104 @@ export default function OrdersScreen() {
       <Stack.Screen options={{ 
         title: 'Pedidos',
         headerLargeTitle: true,
-        headerStyle: { backgroundColor: THEME.bg },
+        headerTransparent: true,
+        headerBlurEffect: isDark ? 'dark' : 'light',
+        headerTintColor: THEME.primary,
         headerSearchBarOptions: {
-          placeholder: 'Buscar Pedido',
+          placeholder: 'Buscar',
           onChangeText: (e) => setSearch(e.nativeEvent.text),
+          headerIconColor: THEME.secondary,
         }
       }} />
 
-      <FlatList
-        data={orders}
-        renderItem={renderOrderItem}
-        keyExtractor={item => item.idExterno}
-        contentContainerStyle={styles.listContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={THEME.accent} />}
-      />
+      {loading && !refreshing ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator color={THEME.accent} size="small" />
+        </View>
+      ) : (
+        <FlatList
+          data={orders}
+          renderItem={renderOrderItem}
+          keyExtractor={item => item.idExterno}
+          ItemSeparatorComponent={() => <View style={[styles.separatorLine, { backgroundColor: THEME.separator }]} />}
+          contentContainerStyle={styles.listContent}
+          contentInsetAdjustmentBehavior="automatic"
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl 
+                refreshing={refreshing} 
+                onRefresh={onRefresh} 
+                tintColor={THEME.accent}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+                <Text style={[styles.emptyText, { color: THEME.secondary }]}>Nenhum pedido</Text>
+            </View>
+          }
+        />
+      )}
 
       <Modal visible={detailVisible} animationType="slide" presentationStyle="pageSheet">
         <View style={[styles.modalBase, { backgroundColor: THEME.bg }]}>
-          <TouchableOpacity onPress={() => setDetailVisible(false)} style={{ padding: 16 }}><Text style={{ color: THEME.accent }}>Fechar</Text></TouchableOpacity>
-          {detailLoading ? <ActivityIndicator color={THEME.accent} /> : selectedOrderDetail && (
-            <ScrollView>
-               <View style={styles.modalHero}>
-                  <Text style={[styles.heroValue, { color: THEME.text }]}>{formatCurrency(selectedOrderDetail.valorTotal)}</Text>
+          <View style={[styles.modalHeader, { borderBottomColor: THEME.separator }]}>
+             <Text style={[styles.modalTitle, { color: THEME.text }]}>Detalhes</Text>
+             <TouchableOpacity onPress={() => setDetailVisible(false)} style={styles.modalClose}>
+                <Text style={{ color: THEME.primary, fontWeight: '600', fontSize: 17 }}>OK</Text>
+             </TouchableOpacity>
+          </View>
+          
+          {detailLoading ? (
+             <View style={styles.modalLoading}><ActivityIndicator color={THEME.accent} /></View>
+          ) : selectedOrderDetail && (
+            <ScrollView contentContainerStyle={styles.modalScroll}>
+               {/* Resumo do Pedido - Estilo iOS Inset Grouped */}
+               <View style={[styles.iosGroupedCard, { backgroundColor: THEME.card }]}>
+                  <View style={styles.iosRow}>
+                      <Text style={[styles.iosLabel, { color: THEME.text }]}>Código</Text>
+                      <Text style={[styles.iosValue, { color: THEME.secondary }]}>#{selectedOrderDetail.idExterno}</Text>
+                  </View>
+                  <View style={[styles.iosSeparator, { backgroundColor: THEME.separator }]} />
+                  <View style={styles.iosRow}>
+                      <Text style={[styles.iosLabel, { color: THEME.text }]}>Status</Text>
+                      <Text style={[styles.iosValue, { color: getStatusColor(selectedOrderDetail.status), fontWeight: '700' }]}>
+                        {selectedOrderDetail.status}
+                      </Text>
+                  </View>
+                  <View style={[styles.iosSeparator, { backgroundColor: THEME.separator }]} />
+                  <View style={styles.iosRow}>
+                      <Text style={[styles.iosLabel, { color: THEME.text }]}>Total</Text>
+                      <Text style={[styles.iosValue, { color: THEME.text, fontWeight: '800' }]}>{formatCurrency(selectedOrderDetail.valorTotal)}</Text>
+                  </View>
+               </View>
+
+               <Text style={styles.iosGroupLabel}>CLIENTE</Text>
+               <View style={[styles.iosGroupedCard, { backgroundColor: THEME.card }]}>
+                  <View style={styles.iosRowCol}>
+                      <Text style={[styles.iosLabelLarge, { color: THEME.text }]}>{selectedOrderDetail.cliente.fantasia}</Text>
+                      <Text style={[styles.iosSubValue, { color: THEME.secondary }]}>{selectedOrderDetail.cliente.localidade}</Text>
+                  </View>
+               </View>
+
+               <Text style={styles.iosGroupLabel}>ITENS DO PEDIDO</Text>
+               <View style={[styles.iosGroupedCard, { backgroundColor: THEME.card, paddingHorizontal: 0 }]}>
+                  {selectedOrderDetail.itens?.map((item, idx) => (
+                    <View key={idx}>
+                      <View style={styles.iosItemRow}>
+                         <View style={{ flex: 1 }}>
+                            <Text style={[styles.iosItemName, { color: THEME.text }]}>{item.nome}</Text>
+                            <Text style={[styles.iosItemRef, { color: THEME.accent }]}>REF: {item.referencia}</Text>
+                         </View>
+                         <View style={{ alignItems: 'flex-end' }}>
+                            <Text style={[styles.iosItemPrice, { color: THEME.text }]}>{item.quantidadeItem} un</Text>
+                            <Text style={[styles.iosItemPriceSub, { color: THEME.secondary }]}>{formatCurrency(item.valorUnitario)}</Text>
+                         </View>
+                      </View>
+                      {idx < selectedOrderDetail.itens.length - 1 && (
+                        <View style={[styles.iosSeparator, { backgroundColor: THEME.separator, marginLeft: 16 }]} />
+                      )}
+                    </View>
+                  ))}
                </View>
             </ScrollView>
           )}
@@ -205,12 +286,38 @@ export default function OrdersScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  listContent: { padding: 16, paddingTop: 20, paddingBottom: 100 },
-  itemRow: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 12, marginBottom: 10 },
-  statusIconCircle: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
-  itemCustomerName: { fontSize: 16, fontWeight: '700' },
-  itemPriceID: { fontSize: 13 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  listContent: { paddingBottom: 40 },
+  separatorLine: { height: StyleSheet.hairlineWidth, marginLeft: 16 },
+  itemRow: { paddingVertical: 14, paddingHorizontal: 16 },
+  itemContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  itemMainInfo: { flex: 1 },
+  itemCustomerName: { fontSize: 17, fontWeight: '700', marginBottom: 2 },
+  itemSubDetail: { fontSize: 13 },
+  itemRightSide: { alignItems: 'flex-end' },
+  itemPriceText: { fontSize: 15, fontWeight: '400', marginBottom: 4 },
+  statusBadgeSmall: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  statusTextSmall: { fontSize: 10, fontWeight: '600' },
+  emptyContainer: { flex: 1, paddingTop: 100, alignItems: 'center' },
+  emptyText: { fontSize: 17 },
   modalBase: { flex: 1 },
-  modalHero: { alignItems: 'center', padding: 40 },
-  heroValue: { fontSize: 40, fontWeight: '800' }
+  modalHeader: { height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderBottomWidth: StyleSheet.hairlineWidth },
+  modalTitle: { fontSize: 17, fontWeight: '600' },
+  modalClose: { position: 'absolute', right: 16 },
+  modalLoading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  modalScroll: { padding: 16, paddingBottom: 60 },
+  iosGroupedCard: { borderRadius: 10, paddingHorizontal: 16, marginBottom: 20, overflow: 'hidden' },
+  iosGroupLabel: { fontSize: 13, color: '#6e6e73', marginLeft: 16, marginBottom: 8, textTransform: 'uppercase' },
+  iosRow: { height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  iosRowCol: { paddingVertical: 12 },
+  iosLabel: { fontSize: 17 },
+  iosLabelLarge: { fontSize: 17, fontWeight: '600' },
+  iosValue: { fontSize: 17 },
+  iosSubValue: { fontSize: 14, marginTop: 2 },
+  iosSeparator: { height: StyleSheet.hairlineWidth },
+  iosItemRow: { padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  iosItemName: { fontSize: 15, fontWeight: '600', marginBottom: 2 },
+  iosItemRef: { fontSize: 12, fontWeight: '600' },
+  iosItemPrice: { fontSize: 15, fontWeight: '600' },
+  iosItemPriceSub: { fontSize: 13, marginTop: 2 }
 });

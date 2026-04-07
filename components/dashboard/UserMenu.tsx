@@ -1,6 +1,6 @@
-import { FontAwesome } from '@expo/vector-icons';
+import { FontAwesome, Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, Platform, StyleSheet, Text, TouchableOpacity, View, ScrollView } from 'react-native';
 
 interface UserMenuProps {
     visible: boolean;
@@ -23,11 +23,9 @@ export const UserMenu = ({
     THEME, 
     handleLogout, 
     router, 
-    styles 
+    styles: oldStyles 
 }: UserMenuProps) => {
-    // Alinhando com as cores exatas da página inicial
-    const SHEET_BG = isDark ? '#1C252E' : '#FFFFFF';
-    const SCREEN_BG = isDark ? '#1C252E' : '#F2F2F7';
+    const MENU_BG = isDark ? '#1C252E' : '#FFFFFF';
 
     return (
         <Modal 
@@ -35,70 +33,146 @@ export const UserMenu = ({
             transparent={Platform.OS !== 'ios'}
             animationType="slide"
             presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'overFullScreen'}
-            // @ts-ignore - Propriedade nativa do iOS no RN > 0.72
-            sheetAllowedDetents={Platform.OS === 'ios' ? ['medium'] : undefined}
             onRequestClose={onClose}
         >
-            <View style={Platform.OS === 'ios' ? { flex: 1, backgroundColor: SCREEN_BG } : styles.iosModalOverlay}>
-                
-                <View style={[
-                    styles.iosMenuSheet, 
-                    { 
-                        backgroundColor: SHEET_BG,
-                        paddingBottom: Math.max(40, insets.bottom),
-                        marginTop: Platform.OS === 'ios' ? 0 : 'auto', 
-                        width: '100%',
-                    }
-                ]}>
-                    <View style={{ 
-                        width: 40, 
-                        height: 5, 
-                        backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', 
-                        borderRadius: 3, 
-                        alignSelf: 'center', 
-                        marginBottom: 15, 
-                        marginTop: 10 
-                    }} />
-                    
-                    <View style={styles.menuHeader}>
-                        <View style={[styles.menuAvatarLarge, { backgroundColor: THEME.accent }]}>
-                            <Text style={[styles.avatarLabelLarge, { color: '#FFFFFF' }]}>
-                                {(user?.nomeCompleto || user?.username || 'U').charAt(0)}
-                            </Text>
-                        </View>
-                        <Text style={[styles.menuName, { color: THEME.text }]}>{user?.nomeCompleto || user?.username}</Text>
-                        <Text style={[styles.menuRole, { color: THEME.secondaryText }]}>{'Representante Comercial'}</Text>
-                    </View>
-                    
-                    <View style={[styles.menuSeparator, { backgroundColor: THEME.separator }]} />
-                    
-                    <TouchableOpacity 
-                        style={[styles.menuActionItem, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: THEME.separator }]} 
-                        onPress={() => { onClose(); router.push('/profile'); }}
-                    >
-                        <Text style={[styles.logoutText, { color: THEME.text }]}>Ver Meu Perfil</Text>
-                        <FontAwesome name="user-circle" size={18} color={THEME.accent} />
+            <View style={[styles.container, { backgroundColor: MENU_BG }]}>
+                {/* Header Estilo Apple */}
+                <View style={[styles.header, { borderBottomColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
+                    <View style={styles.headerIndicator} />
+                    <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                        <Ionicons name="close-circle" size={26} color={THEME.secondaryText} />
                     </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.menuActionItem} onPress={handleLogout}>
-                        <Text style={[styles.logoutText, { color: THEME.danger }]}>Sair da Conta</Text>
-                        <FontAwesome name="sign-out" size={18} color={THEME.danger} />
-                    </TouchableOpacity>
-
-                    {Platform.OS !== 'ios' && (
-                        <TouchableOpacity style={[styles.menuActionItem, { marginTop: 10 }]} onPress={onClose}>
-                            <Text style={[styles.logoutText, { color: THEME.secondaryText }]}>Fechar</Text>
-                        </TouchableOpacity>
-                    )}
+                    <Text style={[styles.headerTitle, { color: THEME.text }]}>Sua Conta</Text>
                 </View>
 
-                {Platform.OS !== 'ios' && (
-                    <TouchableOpacity 
-                        style={[StyleSheet.absoluteFill, { zIndex: -1 }]} 
-                        onPress={onClose} 
-                    />
-                )}
+                <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(40, insets.bottom) }]}>
+                    {/* Perfil do Usuário */}
+                    <View style={styles.profileSection}>
+                        <View style={[styles.avatarLarge, { backgroundColor: THEME.accent }]}>
+                            <Text style={styles.avatarLabelLarge}>
+                                {(user?.nomeCompleto || user?.username || 'U').charAt(0)}
+                            </Text>
+                            <View style={styles.statusDot} />
+                        </View>
+                        <View style={styles.profileInfo}>
+                            <Text style={[styles.userName, { color: THEME.text }]}>{user?.nomeCompleto || user?.username}</Text>
+                            <Text style={[styles.userRole, { color: THEME.secondaryText }]}>Representante Comercial</Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.menuGroup}>
+                        <Text style={[styles.groupLabel, { color: THEME.secondaryText }]}>GERENCIAMENTO</Text>
+                        
+                        <TouchableOpacity 
+                            style={[styles.menuItem, { backgroundColor: THEME.card }]} 
+                            onPress={() => { onClose(); router.push('/profile'); }}
+                        >
+                            <View style={[styles.iconBox, { backgroundColor: THEME.accent + '15' }]}>
+                                <FontAwesome name="user-circle-o" size={18} color={THEME.accent} />
+                            </View>
+                            <Text style={[styles.menuItemText, { color: THEME.text }]}>Ver Meu Perfil</Text>
+                            <Ionicons name="chevron-forward" size={16} color={THEME.secondaryText} />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity 
+                            style={[styles.menuItem, { backgroundColor: THEME.card }]} 
+                            onPress={() => { onClose(); router.push('/metas-history'); }}
+                        >
+                            <View style={[styles.iconBox, { backgroundColor: '#32D74B' + '15' }]}>
+                                <FontAwesome name="history" size={16} color="#32D74B" />
+                            </View>
+                            <Text style={[styles.menuItemText, { color: THEME.text }]}>Histórico de Metas</Text>
+                            <Ionicons name="chevron-forward" size={16} color={THEME.secondaryText} />
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.menuGroup}>
+                        <Text style={[styles.groupLabel, { color: THEME.secondaryText }]}>APLICATIVO</Text>
+                        
+                        <TouchableOpacity style={[styles.menuItem, { backgroundColor: THEME.card }]}>
+                            <View style={[styles.iconBox, { backgroundColor: THEME.navText + '15' }]}>
+                                <Ionicons name="settings-outline" size={18} color={THEME.navText} />
+                            </View>
+                            <Text style={[styles.menuItemText, { color: THEME.text }]}>Configurações</Text>
+                            <Ionicons name="chevron-forward" size={16} color={THEME.secondaryText} />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={[styles.menuItem, { backgroundColor: THEME.card }]} onPress={handleLogout}>
+                            <View style={[styles.iconBox, { backgroundColor: THEME.danger + '15' }]}>
+                                <Ionicons name="log-out-outline" size={18} color={THEME.danger} />
+                            </View>
+                            <Text style={[styles.menuItemText, { color: THEME.danger }]}>Sair da Conta</Text>
+                        </TouchableOpacity>
+                    </View>
+                </ScrollView>
             </View>
         </Modal>
     );
 };
+
+const styles = StyleSheet.create({
+    container: { flex: 1 },
+    header: {
+        height: 65,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderBottomWidth: 1,
+    },
+    headerIndicator: { width: 36, height: 5, backgroundColor: 'rgba(0,0,0,0.1)', borderRadius: 3, position: 'absolute', top: 12 },
+    headerTitle: { fontSize: 16, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8 },
+    closeButton: { position: 'absolute', right: 16, top: 18 },
+    content: { padding: 20 },
+    profileSection: { 
+        flexDirection: 'row', 
+        alignItems: 'center', 
+        marginBottom: 32,
+        marginTop: 10
+    },
+    avatarLarge: { 
+        width: 70, 
+        height: 70, 
+        borderRadius: 35, 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        position: 'relative'
+    },
+    avatarLabelLarge: { fontSize: 28, fontWeight: '800', color: '#FFF' },
+    statusDot: { 
+        width: 14, 
+        height: 14, 
+        borderRadius: 7, 
+        backgroundColor: '#32D74B', 
+        position: 'absolute', 
+        bottom: 2, 
+        right: 2,
+        borderWidth: 2,
+        borderColor: '#FFF'
+    },
+    profileInfo: { marginLeft: 16 },
+    userName: { fontSize: 20, fontWeight: '800', letterSpacing: -0.5 },
+    userRole: { fontSize: 13, fontWeight: '600', marginTop: 2, opacity: 0.8 },
+    menuGroup: { marginBottom: 28 },
+    groupLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 16, marginLeft: 4 },
+    menuItem: { 
+        flexDirection: 'row', 
+        alignItems: 'center', 
+        padding: 14, 
+        borderRadius: 12, 
+        marginBottom: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 1
+    },
+    iconBox: { 
+        width: 36, 
+        height: 36, 
+        borderRadius: 10, 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        marginRight: 14 
+    },
+    menuItemText: { flex: 1, fontSize: 15, fontWeight: '600' }
+});
+
