@@ -408,11 +408,11 @@ export default function AnalyticsScreen() {
       >
         <View style={[styles.modalBase, { backgroundColor: THEME.bg }]}>
           <View style={[styles.modalHeader, { borderBottomColor: THEME.border }]}>
-            <TouchableOpacity onPress={() => setColModalVisible(false)} style={styles.modalCancel}>
-              <Text style={{ color: THEME.accent, fontSize: 17, fontWeight: '600' }}>Fechar</Text>
-            </TouchableOpacity>
+            <View style={styles.modalHandle} />
             <Text style={[styles.modalTitle, { color: THEME.text }]}>Coleção</Text>
-            <View style={{ width: 80 }} />
+            <TouchableOpacity onPress={() => setColModalVisible(false)} style={styles.modalClose}>
+              <Text style={{ color: THEME.accent, fontSize: 17, fontWeight: '500' }}>OK</Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.modalSearchArea}>

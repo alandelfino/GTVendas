@@ -37,12 +37,12 @@ export const UserMenu = ({
         >
             <View style={[styles.container, { backgroundColor: MENU_BG }]}>
                 {/* Header Estilo Apple */}
-                <View style={[styles.header, { borderBottomColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
-                    <View style={styles.headerIndicator} />
-                    <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                        <Ionicons name="close-circle" size={26} color={THEME.accent} />
+                <View style={[styles.modalHeader, { borderBottomColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
+                    <View style={styles.modalHandle} />
+                    <Text style={[styles.modalTitle, { color: THEME.text }]}>Minha Conta</Text>
+                    <TouchableOpacity onPress={onClose} style={styles.modalClose}>
+                        <Text style={{ color: THEME.accent, fontWeight: '700', fontSize: 17 }}>OK</Text>
                     </TouchableOpacity>
-                    <Text style={[styles.headerTitle, { color: THEME.text }]}>Sua Conta</Text>
                 </View>
 
                 <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(40, insets.bottom) }]}>
@@ -112,15 +112,10 @@ export const UserMenu = ({
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    header: {
-        height: 65,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderBottomWidth: 1,
-    },
-    headerIndicator: { width: 36, height: 5, backgroundColor: 'rgba(0,0,0,0.1)', borderRadius: 3, position: 'absolute', top: 12 },
-    headerTitle: { fontSize: 16, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8 },
-    closeButton: { position: 'absolute', right: 16, top: 18 },
+    modalHeader: { height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderBottomWidth: 1 },
+    modalHandle: { position: 'absolute', top: 8, width: 36, height: 5, borderRadius: 2.5, backgroundColor: '#C7C7CC' },
+    modalTitle: { fontSize: 16, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 10 },
+    modalClose: { position: 'absolute', right: 16, marginTop: 10 },
     content: { padding: 20 },
     profileSection: { 
         flexDirection: 'row', 

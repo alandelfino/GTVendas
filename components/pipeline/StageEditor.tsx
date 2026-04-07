@@ -34,77 +34,63 @@ export default function StageEditor({
   const styles = createStyles(THEME, isDark);
 
   return (
-    <Modal visible={visible} transparent animationType="fade">
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
-        style={{ flex: 1 }}
-      >
-        <Pressable style={styles.alertOverlay} onPress={onClose}>
-          <Pressable style={[styles.alertBox, { backgroundColor: THEME.card }]}>
-            <Text style={[styles.alertTitle, { color: THEME.text }]}>{editingStage?.id ? 'Editar Estágio' : 'Novo Estágio'}</Text>
+    <Modal visible={visible} presentationStyle="pageSheet" animationType="slide">
+      <View style={[styles.modalBase, { backgroundColor: THEME.bg }]}>
+        <View style={[styles.modalHeader, { borderBottomColor: THEME.border }]}>
+          <View style={styles.modalHandle} />
+          <Text style={[styles.modalTitle, { color: THEME.text }]}>{editingStage?.id ? 'Editar Estágio' : 'Novo Estágio'}</Text>
+          <TouchableOpacity onPress={() => onSave(editingStage || {})} style={styles.modalClose}>
+            <Text style={{ color: THEME.accent, fontWeight: '500', fontSize: 17 }}>Salvar</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={{ padding: 16 }}>
+          <Text style={[styles.label, { color: THEME.secondary, marginTop: 24 }]}>NOME DA FASE</Text>
+          <View style={[styles.insetGroup, { backgroundColor: THEME.card }]}>
             <TextInput 
-              style={[styles.alertInput, { color: THEME.text, borderColor: THEME.border }]}
-              placeholder="Nome do Estágio (Fase)"
+              style={[styles.input, { color: THEME.text }]}
+              placeholder="Ex: Em Negociação"
               placeholderTextColor={THEME.secondary}
               value={editingStage?.nome}
               onChangeText={v => setEditingStage({...editingStage, nome: v})}
               autoFocus
             />
-            <View style={styles.colorRow}>
-               <TouchableOpacity style={[styles.colorOption, editingStage?.cor === '#0A84FF' && styles.selectedRing]} onPress={() => setEditingStage({...editingStage, cor: '#0A84FF'})}>
-                  <View style={[styles.colorOrb, { backgroundColor: '#0A84FF' }]} />
-               </TouchableOpacity>
-               <TouchableOpacity style={[styles.colorOption, editingStage?.cor === '#34C759' && styles.selectedRing]} onPress={() => setEditingStage({...editingStage, cor: '#34C759'})}>
-                  <View style={[styles.colorOrb, { backgroundColor: '#34C759' }]} />
-               </TouchableOpacity>
-               <TouchableOpacity style={[styles.colorOption, editingStage?.cor === '#FF9500' && styles.selectedRing]} onPress={() => setEditingStage({...editingStage, cor: '#FF9500'})}>
-                  <View style={[styles.colorOrb, { backgroundColor: '#FF9500' }]} />
-               </TouchableOpacity>
-               <TouchableOpacity style={[styles.colorOption, editingStage?.cor === '#FF3B30' && styles.selectedRing]} onPress={() => setEditingStage({...editingStage, cor: '#FF3B30'})}>
-                  <View style={[styles.colorOrb, { backgroundColor: '#FF3B30' }]} />
-               </TouchableOpacity>
-               <TouchableOpacity style={[styles.colorOption, editingStage?.cor === '#AF52DE' && styles.selectedRing]} onPress={() => setEditingStage({...editingStage, cor: '#AF52DE'})}>
-                  <View style={[styles.colorOrb, { backgroundColor: '#AF52DE' }]} />
-               </TouchableOpacity>
-            </View>
-            <View style={styles.alertActionRow}>
-              <TouchableOpacity style={styles.alertBtn} onPress={onClose}>
-                <Text style={{ color: THEME.accent }}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.alertBtn} onPress={() => onSave(editingStage || {})}>
-                <Text style={{ color: THEME.accent, fontWeight: '700' }}>Salvar</Text>
-              </TouchableOpacity>
-            </View>
-          </Pressable>
-        </Pressable>
-      </KeyboardAvoidingView>
+          </View>
+
+          <Text style={[styles.label, { color: THEME.secondary, marginTop: 24 }]}>COR DE IDENTIFICAÇÃO</Text>
+          <View style={styles.colorRow}>
+             <TouchableOpacity style={[styles.colorOption, editingStage?.cor === '#0A84FF' && styles.selectedRing]} onPress={() => setEditingStage({...editingStage, cor: '#0A84FF'})}>
+                <View style={[styles.colorOrb, { backgroundColor: '#0A84FF' }]} />
+             </TouchableOpacity>
+             <TouchableOpacity style={[styles.colorOption, editingStage?.cor === '#34C759' && styles.selectedRing]} onPress={() => setEditingStage({...editingStage, cor: '#34C759'})}>
+                <View style={[styles.colorOrb, { backgroundColor: '#34C759' }]} />
+             </TouchableOpacity>
+             <TouchableOpacity style={[styles.colorOption, editingStage?.cor === '#FF9500' && styles.selectedRing]} onPress={() => setEditingStage({...editingStage, cor: '#FF9500'})}>
+                <View style={[styles.colorOrb, { backgroundColor: '#FF9500' }]} />
+             </TouchableOpacity>
+             <TouchableOpacity style={[styles.colorOption, editingStage?.cor === '#FF3B30' && styles.selectedRing]} onPress={() => setEditingStage({...editingStage, cor: '#FF3B30'})}>
+                <View style={[styles.colorOrb, { backgroundColor: '#FF3B30' }]} />
+             </TouchableOpacity>
+             <TouchableOpacity style={[styles.colorOption, editingStage?.cor === '#AF52DE' && styles.selectedRing]} onPress={() => setEditingStage({...editingStage, cor: '#AF52DE'})}>
+                <View style={[styles.colorOrb, { backgroundColor: '#AF52DE' }]} />
+             </TouchableOpacity>
+          </View>
+        </View>
+      </View>
     </Modal>
   );
 }
 
 const createStyles = (THEME: Theme, isDark: boolean) => StyleSheet.create({
-  alertOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  alertBox: { width: '100%', maxWidth: 300, borderRadius: 14, padding: 20, alignItems: 'center' },
-  alertTitle: { fontSize: 17, fontWeight: '700', marginBottom: 16 },
-  alertInput: { 
-    width: '100%', 
-    height: 44, 
-    backgroundColor: isDark ? '#2C2C2E' : '#E9E9EB',
-    borderRadius: 10,
-    marginBottom: 20, 
-    textAlign: 'center', 
-    fontSize: 17,
-    paddingHorizontal: 16
-  },
-  alertActionRow: { 
-    flexDirection: 'row', 
-    width: '100%', 
-    borderTopWidth: 0.5, 
-    borderTopColor: 'rgba(120,120,128,0.2)', 
-    marginTop: 8 
-  },
-  alertBtn: { flex: 1, height: 44, justifyContent: 'center', alignItems: 'center' },
-  colorRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 20, minHeight: 44, width: '100%' },
+  modalBase: { flex: 1 },
+  modalHeader: { height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderBottomWidth: 0.5 },
+  modalHandle: { position: 'absolute', top: 8, width: 36, height: 5, borderRadius: 2.5, backgroundColor: '#C7C7CC' },
+  modalTitle: { fontSize: 17, fontWeight: '700', marginTop: 10 },
+  modalClose: { position: 'absolute', right: 16, marginTop: 10 },
+  label: { fontSize: 13, fontWeight: '600', letterSpacing: 0.5, marginBottom: 8 },
+  insetGroup: { borderRadius: 10, overflow: 'hidden', marginBottom: 24 },
+  input: { height: 44, paddingHorizontal: 14, fontSize: 17 },
+  colorRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 10, minHeight: 44 },
   colorOption: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginHorizontal: 4 },
   colorOrb: { width: 32, height: 32, borderRadius: 16 },
   selectedRing: { borderColor: THEME.accent, borderWidth: 2.5 },

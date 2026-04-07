@@ -218,9 +218,10 @@ export default function CustomersScreen() {
       <Modal visible={detailVisible} animationType="slide" presentationStyle="pageSheet">
         <View style={[styles.modalBase, { backgroundColor: THEME.bg }]}>
           <View style={[styles.modalHeader, { borderBottomColor: THEME.separator }]}>
+             <View style={styles.modalHandle} />
              <Text style={[styles.modalTitle, { color: THEME.text }]}>Detalhes do Cliente</Text>
              <TouchableOpacity onPress={() => setDetailVisible(false)} style={styles.modalClose}>
-                <Text style={{ color: THEME.accent, fontWeight: '700', fontSize: 16 }}>OK</Text>
+                <Text style={{ color: THEME.accent, fontWeight: '500', fontSize: 16 }}>OK</Text>
              </TouchableOpacity>
           </View>
           
@@ -344,9 +345,10 @@ const styles = StyleSheet.create({
   emptyContainer: { flex: 1, paddingTop: 100, alignItems: 'center' },
   emptyText: { fontSize: 17 },
   modalBase: { flex: 1 },
-  modalHeader: { height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderBottomWidth: StyleSheet.hairlineWidth },
-  modalTitle: { fontSize: 17, fontWeight: '700' },
-  modalClose: { position: 'absolute', right: 16 },
+  modalHeader: { height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderBottomWidth: StyleSheet.hairlineWidth },
+  modalHandle: { position: 'absolute', top: 8, width: 36, height: 5, borderRadius: 2.5, backgroundColor: '#C7C7CC' },
+  modalTitle: { fontSize: 17, fontWeight: '700', marginTop: 10 },
+  modalClose: { position: 'absolute', right: 16, marginTop: 10 },
   modalLoading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   modalScroll: { padding: 16, paddingBottom: 60 },
   heroSection: { paddingVertical: 24, alignItems: 'center' },

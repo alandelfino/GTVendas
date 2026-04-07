@@ -44,12 +44,12 @@ export const LevelDetailSheet = ({
         >
             <View style={[styles.container, { backgroundColor: THEME.bg }]}>
                 {/* Header Estilo Titanium */}
-                <View style={[styles.header, { borderBottomColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
-                    <View style={styles.headerIndicator} />
-                    <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                        <Ionicons name="chevron-down" size={24} color={THEME.accent} />
+                <View style={[styles.modalHeader, { borderBottomColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
+                    <View style={styles.modalHandle} />
+                    <Text style={[styles.modalTitle, { color: THEME.text }]}>Métricas do Nível</Text>
+                    <TouchableOpacity onPress={onClose} style={styles.modalClose}>
+                        <Text style={{ color: THEME.accent, fontWeight: '700', fontSize: 17 }}>OK</Text>
                     </TouchableOpacity>
-                    <Text style={[styles.headerTitle, { color: THEME.text }]}>Métricas do Nível</Text>
                 </View>
 
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -138,16 +138,10 @@ export const LevelDetailSheet = ({
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    header: {
-        height: 65,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderBottomWidth: 1,
-        paddingHorizontal: 16,
-    },
-    headerIndicator: { width: 36, height: 5, backgroundColor: 'rgba(0,0,0,0.1)', borderRadius: 3, position: 'absolute', top: 10 },
-    headerTitle: { fontSize: 16, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
-    closeButton: { position: 'absolute', right: 16, top: 20 },
+    modalHeader: { height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderBottomWidth: 1, paddingHorizontal: 16 },
+    modalHandle: { position: 'absolute', top: 8, width: 36, height: 5, borderRadius: 2.5, backgroundColor: '#C7C7CC' },
+    modalTitle: { fontSize: 16, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 10 },
+    modalClose: { position: 'absolute', right: 16, marginTop: 10 },
     scrollContent: { padding: 20, paddingBottom: 60 },
     heroSection: { alignItems: 'center', marginBottom: 32 },
     trophyContainer: { width: 140, height: 140, borderRadius: 70, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },

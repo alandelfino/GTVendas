@@ -107,12 +107,10 @@ export default function BoardManager({
     <Modal visible={visible} presentationStyle="pageSheet" animationType="slide">
       <View style={[styles.modalBase, { backgroundColor: THEME.bg }]}>
         <View style={[styles.modalHeader, { borderBottomColor: THEME.border }]}>
-           <TouchableOpacity onPress={onClose}>
-             <Text style={{ color: THEME.accent, fontSize: 17 }}>Voltar</Text>
-           </TouchableOpacity>
+           <View style={styles.modalHandle} />
            <Text style={[styles.headerTitle, { color: THEME.text }]}>Quadros de Trabalho</Text>
-           <TouchableOpacity onPress={() => { closeOpenRow(); setEditingBoard({}); }}>
-             <Ionicons name="add" size={24} color={THEME.accent} />
+           <TouchableOpacity onPress={onClose} style={styles.modalClose}>
+             <Text style={{ color: THEME.accent, fontSize: 17, fontWeight: '500' }}>OK</Text>
            </TouchableOpacity>
         </View>
         
@@ -156,12 +154,10 @@ export default function BoardManager({
         {!!selectedBoard && (
            <View style={[StyleSheet.absoluteFill, { backgroundColor: THEME.bg, zIndex: 100 }]}>
               <View style={[styles.modalHeader, { borderBottomColor: THEME.border }]}>
-                <TouchableOpacity onPress={() => setSelectedBoard(null)}>
-                  <Text style={{ color: THEME.accent, fontSize: 17 }}>Concluído</Text>
-                </TouchableOpacity>
+                <View style={styles.modalHandle} />
                 <Text style={[styles.headerTitle, { color: THEME.text }]}>{selectedBoard?.nome}</Text>
-                <TouchableOpacity onPress={() => { setEditingStage({}); setStageEditorVisible(true); }}>
-                  <Ionicons name="add" size={24} color={THEME.accent} />
+                <TouchableOpacity onPress={() => setSelectedBoard(null)} style={styles.modalClose}>
+                  <Text style={{ color: THEME.accent, fontSize: 17, fontWeight: '500' }}>Concluído</Text>
                 </TouchableOpacity>
               </View>
               
@@ -257,8 +253,10 @@ export default function BoardManager({
 
 const createStyles = (THEME: Theme, isDark: boolean) => StyleSheet.create({
   modalBase: { flex: 1 },
-  modalHeader: { height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, borderBottomWidth: 0.5 },
-  headerTitle: { fontSize: 17, fontWeight: '700' },
+  modalHeader: { height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, borderBottomWidth: 0.5 },
+  modalHandle: { position: 'absolute', top: 8, width: 36, height: 5, borderRadius: 2.5, backgroundColor: '#C7C7CC' },
+  headerTitle: { fontSize: 17, fontWeight: '700', marginTop: 10 },
+  modalClose: { position: 'absolute', right: 16, marginTop: 10 },
   insetGroup: { borderRadius: 10, overflow: 'hidden' },
   boardRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, height: 54 },
   sectionLabel: { fontSize: 13, fontWeight: '600', marginLeft: 8, marginBottom: 8, marginTop: 24, textTransform: 'uppercase' },
