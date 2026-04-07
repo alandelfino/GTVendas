@@ -23,6 +23,7 @@ import Svg, { Path } from 'react-native-svg';
 import api from '../../api/api';
 import { CelebrationModal } from '../../components/dashboard/CelebrationModal';
 import { UserMenu } from '../../components/dashboard/UserMenu';
+import { LevelDetailSheet } from '../../components/dashboard/LevelDetailSheet';
 import { useAuth } from '../../context/AuthContext';
 import { styles } from '../../src/styles/index.style';
 
@@ -56,6 +57,10 @@ export default function DashboardScreen() {
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [celebration, setCelebration] = useState<{ visible: boolean, level: string, units: number, icon: any } | null>(null);
+    const [selectedLevelInfo, setSelectedLevelInfo] = useState<{
+        visible: boolean;
+        level: { name: string; target: number; current: number; icon: any; color: string } | null;
+    }>({ visible: false, level: null });
 
     // Interactive Chart State
     const [tooltipData, setTooltipData] = useState<{ value: number, index: number, x: number, y: number } | null>(null);
@@ -232,20 +237,27 @@ export default function DashboardScreen() {
         const goldPct = Math.min(Math.round((totalUnits / ouro) * 100), 100);
 
         const LevelPill = ({ icon, percent, label, tint, value }: { icon: any, percent: number, label: string, tint: string, value: number }) => (
-            <View style={[
-                styles.levelPill, 
-                { 
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    paddingVertical: 14,
-                    paddingHorizontal: 4,
-                    backgroundColor: isDark ? '#1C252E' : '#FFFFFF', 
-                    borderColor: percent === 100 ? THEME.accent : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'),
-                    minHeight: 135,
-                    position: 'relative',
-                    borderWidth: 1,
-                }
-            ]}>
+            <TouchableOpacity 
+                activeOpacity={0.7}
+                onPress={() => setSelectedLevelInfo({
+                    visible: true,
+                    level: { name: label, target: value, current: totalUnits, icon, color: tint }
+                })}
+                style={[
+                    styles.levelPill, 
+                    { 
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        paddingVertical: 14,
+                        paddingHorizontal: 4,
+                        backgroundColor: isDark ? '#1C252E' : '#FFFFFF', 
+                        borderColor: percent === 100 ? THEME.accent : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'),
+                        minHeight: 135,
+                        position: 'relative',
+                        borderWidth: 1,
+                    }
+                ]}
+            >
                 {percent === 100 && (
                     <View style={{ position: 'absolute', top: 6, right: 6 }}>
                         <Ionicons name="checkmark-circle" size={16} color={THEME.accent} />
@@ -267,7 +279,7 @@ export default function DashboardScreen() {
                 <Text style={[styles.pillLabel, { color: THEME.secondaryText, fontSize: 11, opacity: 0.7 }]}>
                     {value.toLocaleString('pt-BR')} un
                 </Text>
-            </View>
+            </TouchableOpacity>
         );
 
         return (
@@ -606,6 +618,16 @@ export default function DashboardScreen() {
                     THEME={THEME}
                 />
             )}
+
+            <LevelDetailSheet
+                visible={selectedLevelInfo.visible}
+                onClose={() => setSelectedLevelInfo({ ...selectedLevelInfo, visible: false })}
+                level={selectedLevelInfo.level}
+                isDark={isDark}
+                THEME={THEME}
+                forecastUnits={forecast}
+                endDate={selectedMeta?.fimMeta || ''}
+            />
         </View>
     );
 }
