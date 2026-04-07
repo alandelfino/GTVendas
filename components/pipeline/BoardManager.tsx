@@ -10,11 +10,13 @@ import {
   StyleSheet,
   Pressable,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Animated as LegacyAnimated
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DraggableFlatList, { ScaleDecorator, RenderItemParams } from 'react-native-draggable-flatlist';
-import { Swipeable } from 'react-native-gesture-handler';
+import Swipeable from 'react-native-gesture-handler/Swipeable';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, interpolate, Extrapolate } from 'react-native-reanimated';
 import { Stage, Board, Theme } from './types';
 import StageEditor from './StageEditor';
 
@@ -73,35 +75,39 @@ export default function BoardManager({
   };
 
   const renderRightActions = (board: Board) => (
-    <View style={styles.rightActionsContainer}>
+    <View style={styles.nativeSwipeContainer}>
       <TouchableOpacity 
-        style={[styles.rightAction, { backgroundColor: THEME.accent }]}
+        style={[styles.nativeSwipeAction, { backgroundColor: '#007AFF' }]}
+        activeOpacity={0.85}
         onPress={() => { closeOpenRow(); setEditingBoard(board); }}
       >
-        <Ionicons name="pencil" size={20} color="#FFF" />
+        <Ionicons name="pencil" size={24} color="#FFF" />
       </TouchableOpacity>
       <TouchableOpacity 
-        style={[styles.rightAction, { backgroundColor: THEME.red }]}
+        style={[styles.nativeSwipeAction, { backgroundColor: '#FF3B30' }]}
+        activeOpacity={0.85}
         onPress={() => { closeOpenRow(); deleteBoard(board.id); }}
       >
-        <Ionicons name="trash-outline" size={20} color="#FFF" />
+        <Ionicons name="trash" size={24} color="#FFF" />
       </TouchableOpacity>
     </View>
   );
 
   const renderStageRightActions = (stage: Stage) => (
-    <View style={styles.rightActionsContainer}>
+    <View style={styles.nativeSwipeContainer}>
       <TouchableOpacity 
-        style={[styles.rightAction, { backgroundColor: THEME.accent }]}
+        style={[styles.nativeSwipeAction, { backgroundColor: '#007AFF' }]}
+        activeOpacity={0.85}
         onPress={() => { closeOpenRow(); setEditingStage(stage); setStageEditorVisible(true); }}
       >
-        <Ionicons name="pencil" size={20} color="#FFF" />
+        <Ionicons name="pencil" size={22} color="#FFF" />
       </TouchableOpacity>
       <TouchableOpacity 
-        style={[styles.rightAction, { backgroundColor: THEME.red }]}
+        style={[styles.nativeSwipeAction, { backgroundColor: '#FF3B30' }]}
+        activeOpacity={0.85}
         onPress={() => { closeOpenRow(); deleteStage(stage.id); }}
       >
-        <Ionicons name="trash-outline" size={20} color="#FFF" />
+        <Ionicons name="trash-outline" size={22} color="#FFF" />
       </TouchableOpacity>
     </View>
   );
@@ -130,6 +136,8 @@ export default function BoardManager({
                   if (ref) swipeableRefs.current.set(key, ref);
                   else swipeableRefs.current.delete(key);
                 }}
+                friction={1}
+                overshootRight={false}
                 renderRightActions={() => renderRightActions(board)}
                 onSwipeableWillOpen={() => {
                    const key = `board-${board.id}`;
@@ -143,6 +151,7 @@ export default function BoardManager({
                 <View style={[styles.insetGroup, { backgroundColor: THEME.card, marginHorizontal: 16 }]}>
                   <TouchableOpacity 
                     style={styles.boardRow}
+                    activeOpacity={0.6}
                     onPress={() => { closeOpenRow(); setSelectedBoard(board); }}
                   >
                      <Ionicons name="list" size={20} color={THEME.accent} style={{ marginRight: 12 }} />
@@ -166,7 +175,14 @@ export default function BoardManager({
                 <View style={styles.modalHandle} />
                 <Text style={[styles.headerTitle, { color: THEME.text }]}>{selectedBoard?.nome}</Text>
                 <TouchableOpacity 
-                  onPress={() => { setEditingStage({ boardId: selectedBoard.id, cor: '#0A84FF', ordem: (selectedBoard.estagios.length + 1) }); setStageEditorVisible(true); }} 
+                   onPress={() => { 
+                     setEditingStage({ 
+                       boardId: selectedBoard.id, 
+                       cor: '#0A84FF', 
+                       ordem: (selectedBoard.estagios.length + 1) 
+                     }); 
+                     setStageEditorVisible(true); 
+                   }} 
                   style={styles.modalClose}
                 >
                   <Text style={{ color: THEME.accent, fontSize: 17, fontWeight: '600' }}>Adicionar</Text>
@@ -174,7 +190,7 @@ export default function BoardManager({
               </View>
               
               <ScrollView style={{ flex: 1 }}>
-                <Text style={[styles.sectionLabel, { color: THEME.secondary, paddingHorizontal: 16, marginTop: 12 }]}>ESTÁGIOS</Text>
+                <Text style={[styles.sectionLabel, { color: THEME.secondary, paddingHorizontal: 16, marginTop: 12 }]}>ORDENAR ESTÁGIOS</Text>
                 
                 <View style={{ padding: 16 }}>
                   <View style={[styles.insetGroup, { backgroundColor: THEME.card }]}>
@@ -183,47 +199,20 @@ export default function BoardManager({
                       onDragEnd={onStageDragEnd}
                       keyExtractor={(item) => item.id.toString()}
                       scrollEnabled={false}
-                      renderItem={({ item, drag, isActive }: RenderItemParams<Stage>) => (
-                        <ScaleDecorator>
-                          <Swipeable
-                            ref={(ref) => {
-                              const key = `stage-${item.id}`;
-                              if (ref) swipeableRefs.current.set(key, ref);
-                              else swipeableRefs.current.delete(key);
-                            }}
-                            renderRightActions={() => renderStageRightActions(item)}
-                            onSwipeableWillOpen={() => {
-                               const key = `stage-${item.id}`;
-                               if (openRowKey.current !== null && openRowKey.current !== key) {
-                                 swipeableRefs.current.get(openRowKey.current)?.close();
-                               }
-                               openRowKey.current = key;
-                            }}
-                          >
-                            <TouchableOpacity
-                              onLongPress={drag}
-                              disabled={isActive}
-                              activeOpacity={1}
-                              onPress={() => { closeOpenRow(); setEditingStage(item); setStageEditorVisible(true); }}
-                              style={[
-                                styles.stageRow,
-                                isActive && { backgroundColor: THEME.border + '50' }
-                              ]}
-                            >
-                              <View style={[styles.stageOrb, { backgroundColor: item.cor }]} />
-                              <Text style={{ flex: 1, fontSize: 17, color: THEME.text }}>
-                                {item.nome}
-                              </Text>
-                              <View onTouchStart={drag} style={styles.dragHandle}>
-                                <Ionicons name="reorder-three-outline" size={24} color={THEME.secondary} />
-                              </View>
-                            </TouchableOpacity>
-                            <View style={[styles.iosSeparator, { backgroundColor: THEME.border }]} />
-                          </Swipeable>
-                        </ScaleDecorator>
+                      renderItem={(params) => (
+                        <StageRow 
+                          {...params} 
+                          THEME={THEME}
+                          styles={styles}
+                          renderRightActions={renderStageRightActions}
+                          swipeableRefs={swipeableRefs}
+                          openRowKey={openRowKey}
+                          closeOpenRow={closeOpenRow}
+                        />
                       )}
                     />
                   </View>
+                  <Text style={{ fontSize: 13, color: THEME.secondary, marginTop: 12, marginHorizontal: 4 }}>Arraste para o lado para editar ou excluir um estágio. Segure e arraste no ícone à direita para reordenar.</Text>
                 </View>
               </ScrollView>
            </View>
@@ -291,6 +280,76 @@ export default function BoardManager({
   );
 }
 
+function StageRow({ item, drag, isActive, THEME, styles, renderRightActions, swipeableRefs, openRowKey, closeOpenRow }: any) {
+  const swipeProgress = useSharedValue(0);
+
+  const animatedHandleStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(swipeProgress.value, [0, 0.4], [1, 0], Extrapolate.CLAMP)
+  }));
+
+  return (
+    <ScaleDecorator>
+      <Swipeable
+        ref={(ref) => {
+          const key = `stage-${item.id}`;
+          if (ref) swipeableRefs.current.set(key, ref);
+          else swipeableRefs.current.delete(key);
+        }}
+        friction={1}
+        overshootRight={false}
+        renderRightActions={(progress) => (
+          <View style={{ flexDirection: 'row', height: '100%' }}>
+            <ProgressUpdater progress={progress} swipeSV={swipeProgress} />
+            {renderRightActions(item)}
+          </View>
+        )}
+        onSwipeableWillOpen={() => {
+           const key = `stage-${item.id}`;
+           if (openRowKey.current !== null && openRowKey.current !== key) {
+             swipeableRefs.current.get(openRowKey.current)?.close();
+           }
+           openRowKey.current = key;
+        }}
+        onSwipeableClose={() => {
+          swipeProgress.value = 0;
+        }}
+      >
+        <TouchableOpacity
+          onLongPress={drag}
+          disabled={isActive}
+          delayLongPress={150}
+          activeOpacity={1}
+          onPress={closeOpenRow}
+          style={[
+            styles.stageRow,
+            isActive && { backgroundColor: THEME.border + '30' }
+          ]}
+        >
+          <View style={[styles.stageOrb, { backgroundColor: item.cor }]} />
+          <Text style={{ flex: 1, fontSize: 17, color: THEME.text }}>
+            {item.nome}
+          </Text>
+          <Animated.View onTouchStart={drag} style={[styles.dragHandle, animatedHandleStyle]}>
+            <Ionicons name="reorder-three-sharp" size={22} color={THEME.secondary} />
+          </Animated.View>
+        </TouchableOpacity>
+        <View style={[styles.iosSeparator, { backgroundColor: THEME.border }]} />
+      </Swipeable>
+    </ScaleDecorator>
+  );
+}
+
+// Secret bridge to sync Legacy Animated -> Reanimated Shared Value in real-time
+function ProgressUpdater({ progress, swipeSV }: any) {
+  React.useEffect(() => {
+    const id = progress.addListener(({ value }: { value: number }) => {
+      swipeSV.value = value;
+    });
+    return () => progress.removeListener(id);
+  }, [progress, swipeSV]);
+  return null;
+}
+
 const createStyles = (THEME: Theme, isDark: boolean) => StyleSheet.create({
   modalBase: { flex: 1 },
   modalHeader: { height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, borderBottomWidth: 0.5 },
@@ -305,7 +364,8 @@ const createStyles = (THEME: Theme, isDark: boolean) => StyleSheet.create({
     flexDirection: 'row', 
     alignItems: 'center', 
     paddingLeft: 16,
-    height: 54
+    height: 54,
+    backgroundColor: THEME.card
   },
   stageOrb: { width: 12, height: 12, borderRadius: 6, marginRight: 12 },
   dragHandle: { paddingHorizontal: 16, height: '100%', justifyContent: 'center' },
@@ -331,20 +391,15 @@ const createStyles = (THEME: Theme, isDark: boolean) => StyleSheet.create({
     marginTop: 8 
   },
   alertBtn: { flex: 1, height: 44, justifyContent: 'center', alignItems: 'center' },
-  rightActionsContainer: { 
+  nativeSwipeContainer: { 
     flexDirection: 'row', 
-    paddingLeft: 10,
-    height: 54,
-    alignItems: 'center',
-    marginRight: 16
+    height: '100%',
+    width: 130,
   },
-  rightAction: { 
+  nativeSwipeAction: { 
+    flex: 1,
     justifyContent: 'center', 
     alignItems: 'center',
-    width: 60,
-    height: 54,
-    borderRadius: 12,
-    marginLeft: 8
   },
   sheetInput: {
     height: 54,
@@ -389,3 +444,5 @@ const createStyles = (THEME: Theme, isDark: boolean) => StyleSheet.create({
     letterSpacing: -0.3
   }
 });
+
+
