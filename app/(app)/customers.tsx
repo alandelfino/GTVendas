@@ -183,6 +183,7 @@ export default function CustomersScreen() {
         title: 'Clientes',
         headerLargeTitle: true,
         headerTransparent: true,
+        headerBackTitle: 'Voltar',
         headerBlurEffect: isDark ? 'dark' : 'light',
         headerTintColor: THEME.primary,
         headerSearchBarOptions: {
@@ -217,7 +218,7 @@ export default function CustomersScreen() {
       <Modal visible={detailVisible} animationType="slide" presentationStyle="pageSheet">
         <View style={[styles.modalBase, { backgroundColor: THEME.bg }]}>
           <View style={[styles.modalHeader, { borderBottomColor: THEME.separator }]}>
-             <Text style={[styles.modalTitle, { color: THEME.text }]}>Detalhe do Cliente</Text>
+             <Text style={[styles.modalTitle, { color: THEME.text }]}>Detalhes do Cliente</Text>
              <TouchableOpacity onPress={() => setDetailVisible(false)} style={styles.modalClose}>
                 <Text style={{ color: THEME.primary, fontWeight: '700', fontSize: 16 }}>OK</Text>
              </TouchableOpacity>

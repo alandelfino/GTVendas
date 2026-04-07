@@ -149,6 +149,7 @@ export default function OrdersScreen() {
         title: 'Pedidos',
         headerLargeTitle: true,
         headerTransparent: true,
+        headerBackTitle: 'Voltar',
         headerBlurEffect: isDark ? 'dark' : 'light',
         headerTintColor: THEME.primary,
         headerSearchBarOptions: {
