@@ -248,9 +248,7 @@ export default function ChatScreen() {
   const loadSessions = async () => {
     setLoading(true);
     try {
-      console.log('--- [CHAT DEBUG] Carregando Sessões ---');
       const response = await api.get('/api/rep/chat/sessions');
-      console.log(`--- [CHAT DEBUG] Sessões Recebidas: ${response.data.length} ---`);
       setSessions(response.data);
       if (response.data.length > 0 && !activeSessionId) {
         setActiveSessionId(response.data[0].id);
@@ -303,10 +301,6 @@ export default function ChatScreen() {
     try {
       const response = await api.get(`/api/rep/chat/sessions/${sessionId}/messages`);
       
-      console.log(`\n--- [DEBUG PROFUNDO SESSÃO ${sessionId}] ---`);
-      console.log('RESPOSTA COMPLETA (3 Primeiras):', JSON.stringify(response.data.slice(0, 3), null, 2));
-      console.log('--------------------------------------------\n');
-
       const history: Message[] = response.data.map((m: any) => ({
         ...m,
         id: m.id.toString(),
@@ -346,21 +340,6 @@ export default function ChatScreen() {
 
       const { messageId, content, events } = response.data;
       
-      console.log('\n--- [CHAT DEBUG] RESPOSTA DO ASSISTENTE ---');
-      console.log('ID:', messageId);
-      console.log('TEXTO:', content);
-      console.log('EVENTOS:', JSON.stringify(events, null, 2));
-      console.log('------------------------------------------\n');
-
-      // Log dos links de relatórios gerados
-      if (events && events.length > 0) {
-        events.forEach((event: any) => {
-          if (event.type === 'pdf' || event.type === 'html_widget') {
-            const reportUrl = `${api.defaults.baseURL}/api/rep/chat/reports/${event.reportId || event.widgetId}`;
-            console.log(`[CHAT LOG] Link Relatório: ${reportUrl} | Título Original: ${event.titulo || event.title || event.name}`);
-          }
-        });
-      }
 
       // Adicionar resposta do assistente ao estado
       const assistantMsg = {
@@ -447,7 +426,7 @@ export default function ChatScreen() {
       if (uri && !isShort) {
         transcribeAudio(uri);
       } else if (isShort) {
-        console.log('--- [CHAT DEBUG] Gravação cancelada por ser muito curta (< 2s) ---');
+        // Silent cancel
       }
     } catch (e) {
       console.error('Stop recording error:', e);

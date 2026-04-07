@@ -253,7 +253,7 @@ export default function LoginScreen() {
 
           <View style={styles.footer}>
             <Text style={[styles.footerText, { color: THEME.secondaryText }]}>© 2026 Grupo Titanium</Text>
-            <Text style={[styles.footerVersion, { color: THEME.secondaryText }]}>Versão 1.0.0</Text>
+            <Text style={[styles.footerVersion, { color: THEME.secondaryText }]}>Versão 1.1.0</Text>
           </View>
       </ScrollView>
     </KeyboardAvoidingView>

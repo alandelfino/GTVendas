@@ -110,7 +110,6 @@ export default function CustomersScreen() {
     try {
       const response = await api.get(`/api/erp/pedidos/${orderId}`);
       const rawData = response.data.data || response.data;
-      console.log('DEBUG [Customers]: Detalhe do Pedido recebido:', JSON.stringify(rawData, null, 2));
       if (rawData) {
         setSelectedOrderDetail(rawData);
       }
