@@ -289,12 +289,10 @@ export default function PipelineScreen() {
 
   useEffect(() => { init(); }, []);
   
-  useEffect(() => { init(); }, []);
-  
   function HeaderComponent() {
     return (
       <Stack.Screen options={{ 
-        title: 'Funil de Vendas',
+        title: 'Pipeline',
         headerLargeTitle: true,
         headerTransparent: true,
         headerBackTitle: 'Voltar',
@@ -450,6 +448,7 @@ export default function PipelineScreen() {
         setEditingPipeline={setEditingPipeline}
         boards={boards}
         collections={collections}
+        actionLoading={actionLoading}
         THEME={THEME}
       />
 

@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
 import {
+    ActivityIndicator,
     Alert,
     FlatList,
     Modal,
@@ -21,6 +22,7 @@ interface PipelineEditorProps {
   setEditingPipeline: (pipeline: Partial<Pipeline> | null) => void;
   boards: Board[];
   collections: any[];
+  actionLoading: boolean;
   THEME: Theme;
 }
 
@@ -32,6 +34,7 @@ export default function PipelineEditor({
   setEditingPipeline,
   boards,
   collections,
+  actionLoading,
   THEME
 }: PipelineEditorProps) {
   const [colModalVisible, setColModalVisible] = useState(false);
@@ -59,8 +62,16 @@ export default function PipelineEditor({
           <View style={styles.modalHandle} />
           <Text style={[styles.headerTitle, { color: THEME.text }]}>Novo Pipeline</Text>
           
-          <TouchableOpacity onPress={() => onSave(editingPipeline || {})} style={styles.modalClose}>
-            <Text style={{ color: THEME.accent, fontSize: 17, fontWeight: '600' }}>Salvar</Text>
+          <TouchableOpacity 
+            onPress={() => onSave(editingPipeline || {})} 
+            style={styles.modalClose}
+            disabled={actionLoading}
+          >
+            {actionLoading ? (
+               <ActivityIndicator color={THEME.accent} size="small" />
+            ) : (
+               <Text style={{ color: THEME.accent, fontSize: 17, fontWeight: '600', opacity: actionLoading ? 0.3 : 1 }}>Salvar</Text>
+            )}
           </TouchableOpacity>
         </View>
 
