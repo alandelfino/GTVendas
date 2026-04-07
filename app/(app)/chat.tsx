@@ -782,8 +782,8 @@ export default function ChatScreen() {
               style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 0 }}
               hitSlop={{ top: 15, bottom: 15, left: 20, right: 20 }}
             >
-              <Ionicons name="chevron-back" size={28} color={THEME.primary} />
-              <Text style={{ color: THEME.primary, fontSize: 17, marginLeft: 5 }}>Voltar</Text>
+              <Ionicons name="chevron-back" size={28} color="#F9B252" />
+              <Text style={{ color: "#F9B252", fontSize: 17, marginLeft: 5 }}>Voltar</Text>
             </TouchableOpacity>
           ),
           headerRight: () => (
@@ -792,13 +792,13 @@ export default function ChatScreen() {
                 onPress={() => setIsHistoryOpen(true)}
                 hitSlop={{ top: 15, bottom: 15, left: 10, right: 10 }}
               >
-                <Ionicons name="list-outline" size={26} color={THEME.primary} />
+                <Ionicons name="list-outline" size={26} color="#F9B252" />
               </Pressable>
               <Pressable 
                 onPress={handleCreateNewSession}
                 hitSlop={{ top: 15, bottom: 15, left: 10, right: 10 }}
               >
-                <Ionicons name="add" size={32} color={THEME.primary} />
+                <Ionicons name="add" size={32} color="#F9B252" />
               </Pressable>
             </View>
           )

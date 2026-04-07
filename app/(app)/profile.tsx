@@ -46,8 +46,11 @@ export default function ProfileScreen() {
         headerShown: true, 
         title: 'Meu Perfil',
         headerLargeTitle: true,
+        headerTransparent: true,
+        headerBackTitle: 'Voltar',
+        headerBlurEffect: isDark ? 'dark' : 'light',
+        headerTintColor: THEME.accent,
         headerStyle: { backgroundColor: THEME.bg },
-        headerTitleStyle: { color: THEME.text },
       }} />
       
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>

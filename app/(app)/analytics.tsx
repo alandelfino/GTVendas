@@ -211,14 +211,14 @@ export default function AnalyticsScreen() {
               onPress={() => setColModalVisible(true)}
               activeOpacity={0.7}
             >
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: 16 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <Ionicons name="filter-circle-outline" size={22} color={THEME.accent} style={{ marginRight: 12 }} />
                   <Text style={[styles.pickerValue, { color: THEME.text }]} numberOfLines={1}>
                     {selectedColecao ? colecoes.find(c => c.idExterno === selectedColecao)?.nome : 'Todas as Coleções'}
                   </Text>
                 </View>
-                <Ionicons name="chevron-down" size={16} color={THEME.secondary} style={{ marginLeft: 8 }} />
+                <Ionicons name="chevron-down" size={16} color={THEME.secondary} />
               </View>
             </TouchableOpacity>
           </View>
