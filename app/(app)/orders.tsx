@@ -15,6 +15,7 @@ import {
     View
 } from 'react-native';
 import api from '../../api/api';
+import OrderDetailSheet, { OrderDetail, ItemPedido } from '../../components/dashboard/OrderDetailSheet';
 
 const { width } = Dimensions.get('window');
 
@@ -24,40 +25,9 @@ interface Order {
   valorTotal: number;
   status: string;
   cliente: {
-    idExterno: string;
-    nome: string;
     fantasia: string;
-    cnpj?: string;
-    cidade?: string;
-    uf?: string;
-    endereco: {
-      cidade: string;
-      uf: string;
-      logradouro: string;
-      numero: string | number | null;
-    };
-    localidade?: string;
-    telefone?: string;
+    localidade: string;
   };
-}
-
-interface OrderItem {
-  produtoId: string;
-  nome: string;
-  referencia: string;
-  valorUnitario: number;
-  quantidadeItem: number;
-  cores: {
-    corNome: string;
-    tamanhos: {
-      tamanho: string;
-      quantidade: number;
-    }[];
-  }[];
-}
-
-interface OrderDetail extends Order {
-  itens: OrderItem[];
 }
 
 export default function OrdersScreen() {
@@ -116,6 +86,7 @@ export default function OrdersScreen() {
     try {
       const response = await api.get(`/api/erp/pedidos/${orderId}`);
       const rawData = response.data.data || response.data;
+      console.log('DEBUG [Orders]: Detalhe do Pedido recebido:', JSON.stringify(rawData, null, 2));
       if (rawData) {
         setSelectedOrderDetail(rawData);
       }
@@ -215,71 +186,15 @@ export default function OrdersScreen() {
         />
       )}
 
-      <Modal visible={detailVisible} animationType="slide" presentationStyle="pageSheet">
-        <View style={[styles.modalBase, { backgroundColor: THEME.bg }]}>
-          <View style={[styles.modalHeader, { borderBottomColor: THEME.separator }]}>
-             <Text style={[styles.modalTitle, { color: THEME.text }]}>Detalhes</Text>
-             <TouchableOpacity onPress={() => setDetailVisible(false)} style={styles.modalClose}>
-                <Text style={{ color: THEME.primary, fontWeight: '600', fontSize: 17 }}>OK</Text>
-             </TouchableOpacity>
-          </View>
-          
-          {detailLoading ? (
-             <View style={styles.modalLoading}><ActivityIndicator color={THEME.accent} /></View>
-          ) : selectedOrderDetail && (
-            <ScrollView contentContainerStyle={styles.modalScroll}>
-               {/* Resumo do Pedido - Estilo iOS Inset Grouped */}
-               <View style={[styles.iosGroupedCard, { backgroundColor: THEME.card }]}>
-                  <View style={styles.iosRow}>
-                      <Text style={[styles.iosLabel, { color: THEME.text }]}>Código</Text>
-                      <Text style={[styles.iosValue, { color: THEME.secondary }]}>#{selectedOrderDetail.idExterno}</Text>
-                  </View>
-                  <View style={[styles.iosSeparator, { backgroundColor: THEME.separator }]} />
-                  <View style={styles.iosRow}>
-                      <Text style={[styles.iosLabel, { color: THEME.text }]}>Status</Text>
-                      <Text style={[styles.iosValue, { color: getStatusColor(selectedOrderDetail.status), fontWeight: '700' }]}>
-                        {selectedOrderDetail.status}
-                      </Text>
-                  </View>
-                  <View style={[styles.iosSeparator, { backgroundColor: THEME.separator }]} />
-                  <View style={styles.iosRow}>
-                      <Text style={[styles.iosLabel, { color: THEME.text }]}>Total</Text>
-                      <Text style={[styles.iosValue, { color: THEME.text, fontWeight: '800' }]}>{formatCurrency(selectedOrderDetail.valorTotal)}</Text>
-                  </View>
-               </View>
-
-               <Text style={styles.iosGroupLabel}>CLIENTE</Text>
-               <View style={[styles.iosGroupedCard, { backgroundColor: THEME.card }]}>
-                  <View style={styles.iosRowCol}>
-                      <Text style={[styles.iosLabelLarge, { color: THEME.text }]}>{selectedOrderDetail.cliente.fantasia}</Text>
-                      <Text style={[styles.iosSubValue, { color: THEME.secondary }]}>{selectedOrderDetail.cliente.localidade}</Text>
-                  </View>
-               </View>
-
-               <Text style={styles.iosGroupLabel}>ITENS DO PEDIDO</Text>
-               <View style={[styles.iosGroupedCard, { backgroundColor: THEME.card, paddingHorizontal: 0 }]}>
-                  {selectedOrderDetail.itens?.map((item, idx) => (
-                    <View key={idx}>
-                      <View style={styles.iosItemRow}>
-                         <View style={{ flex: 1 }}>
-                            <Text style={[styles.iosItemName, { color: THEME.text }]}>{item.nome}</Text>
-                            <Text style={[styles.iosItemRef, { color: THEME.accent }]}>REF: {item.referencia}</Text>
-                         </View>
-                         <View style={{ alignItems: 'flex-end' }}>
-                            <Text style={[styles.iosItemPrice, { color: THEME.text }]}>{item.quantidadeItem} un</Text>
-                            <Text style={[styles.iosItemPriceSub, { color: THEME.secondary }]}>{formatCurrency(item.valorUnitario)}</Text>
-                         </View>
-                      </View>
-                      {idx < selectedOrderDetail.itens.length - 1 && (
-                        <View style={[styles.iosSeparator, { backgroundColor: THEME.separator, marginLeft: 16 }]} />
-                      )}
-                    </View>
-                  ))}
-               </View>
-            </ScrollView>
-          )}
-        </View>
-      </Modal>
+      <OrderDetailSheet 
+        visible={detailVisible} 
+        onClose={() => setDetailVisible(false)}
+        order={selectedOrderDetail}
+        loading={detailLoading}
+        theme={THEME}
+        getStatusColor={getStatusColor}
+        formatCurrency={formatCurrency}
+      />
     </View>
   );
 }

@@ -17,6 +17,7 @@ import {
     View
 } from 'react-native';
 import api from '../../api/api';
+import OrderDetailSheet, { OrderDetail, ItemPedido } from '../../components/dashboard/OrderDetailSheet';
 
 const { width } = Dimensions.get('window');
 
@@ -25,16 +26,14 @@ interface Customer {
   nome: string;
   fantasia: string;
   cnpj: string;
-  statusDescricao: string;
   telefone?: string;
   email?: string;
+  statusDescricao: string;
   endereco: {
     cidade: string;
     uf: string;
     logradouro: string;
-    numero: number | null;
-    bairro: string;
-    cep: string;
+    numero: string;
   };
 }
 
@@ -46,24 +45,6 @@ interface OrderHistory {
   totalQuantidade?: number;
 }
 
-interface OrderItem {
-  produtoId: string;
-  nome: string;
-  referencia: string;
-  cores: {
-    corNome: string;
-    tamanhos: {
-      tamanho: string;
-      quantidade: number;
-    }[];
-  }[];
-}
-
-interface OrderDetail extends OrderHistory {
-  itens: OrderItem[];
-  items?: OrderItem[];
-}
-
 export default function CustomersScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -73,14 +54,12 @@ export default function CustomersScreen() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState('');
   
-  // Detail Modal States
   const [detailVisible, setDetailVisible] = useState(false);
-  const [detailTab, setDetailTab] = useState<'info' | 'history'>('info');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [orderHistory, setOrderHistory] = useState<OrderHistory[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  
-  // Order Detail Modal States (Nested)
+
+  // Nested Order Details
   const [orderModalVisible, setOrderModalVisible] = useState(false);
   const [selectedOrderDetail, setSelectedOrderDetail] = useState<OrderDetail | null>(null);
   const [orderDetailLoading, setOrderDetailLoading] = useState(false);
@@ -90,12 +69,11 @@ export default function CustomersScreen() {
     card: isDark ? '#2C3641' : '#FFFFFF',
     text: isDark ? '#FFFFFF' : '#1C252E',
     secondary: isDark ? '#8E9AA9' : '#636366',
-    border: isDark ? '#3D4956' : '#C6C6C8',
+    border: isDark ? '#3D4956' : '#E5E5EA',
     accent: '#F9B252',
     primary: isDark ? '#F9B252' : '#3D4956', 
-    green: '#34C759',
-    red: '#FF3B30',
-    orange: '#F9B252',
+    positive: '#34C759',
+    danger: '#FF3B30',
     separator: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
   };
 
@@ -121,72 +99,33 @@ export default function CustomersScreen() {
       setOrderHistory(Array.isArray(orders) ? orders : []);
     } catch (error) {
       console.error('Error fetching history:', error);
-      setOrderHistory([]);
     } finally {
       setHistoryLoading(false);
     }
   };
 
   const fetchOrderDetail = async (orderId: string) => {
-    if (!orderId) return;
     setOrderDetailLoading(true);
     setOrderModalVisible(true);
     try {
       const response = await api.get(`/api/erp/pedidos/${orderId}`);
       const rawData = response.data.data || response.data;
-      if (rawData && typeof rawData === 'object') {
-        rawData.idExterno = rawData.idExterno || rawData.id || rawData.codigo || rawData.numPedido || orderId;
-        const items = rawData.itens || rawData.items || rawData.pedidos_itens || rawData.itensPedido || [];
-        rawData.itens = Array.isArray(items) ? items : [];
-        rawData.itens = rawData.itens.map((it: any) => {
-          const cores = it.cores || it.cores_itens || it.itens_cores || [];
-          const totalQty = cores.reduce((acc: number, cor: any) => 
-            acc + (cor.tamanhos || []).reduce((tAcc: number, tam: any) => tAcc + (tam.quantidade || tam.qtd || 0), 0)
-          , 0);
-          return {
-            ...it,
-            nome: it.nome || it.nomeProduto || it.descricao || it.produtoDescricao || 'Produto s/ Nome',
-            referencia: it.idExterno || it.referencia || it.ref || it.id || it.codigo || it.codProduto || it.produtoId || it.sku || 'S/ Ref',
-            valorUnitario: it.valorUnitario || it.valor || it.preco || 0,
-            quantidadeItem: it.quantidadeTotal || it.quantidade || totalQty,
-            cores: cores.map((c: any) => ({
-              ...c,
-              corNome: c.corNome || c.nomeCor || c.descricaoCor || 'Cor Padrão',
-              tamanhos: (c.tamanhos || []).map((t: any) => ({
-                tamanho: t.tamanho || t.sigla || t.tam || '?',
-                quantidade: t.quantidade || t.qtd || 0
-              }))
-            }))
-          };
-        });
+      console.log('DEBUG [Customers]: Detalhe do Pedido recebido:', JSON.stringify(rawData, null, 2));
+      if (rawData) {
         setSelectedOrderDetail(rawData);
       }
-    } catch (error: any) {
-      console.error('Error fetching order detail:', error.message);
-      setSelectedOrderDetail(null);
+    } catch (error) {
+      console.error('Error fetching order detail:', error);
     } finally {
       setOrderDetailLoading(false);
     }
   };
 
-  const handleMapPress = (customer: Customer) => {
-    const address = `${customer.endereco.logradouro}, ${customer.endereco.numero}, ${customer.endereco.cidade}, ${customer.endereco.uf}`;
-    const encodedAddress = encodeURIComponent(address);
-    ActionSheetIOS.showActionSheetWithOptions(
-      { options: ['Cancelar', 'Apple Maps', 'Google Maps'], cancelButtonIndex: 0, title: 'Abrir Mapa' },
-      (buttonIndex) => {
-        if (buttonIndex === 1) Linking.openURL(`maps://?q=${encodedAddress}`);
-        else if (buttonIndex === 2) Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`);
-      }
-    );
-  };
-
   const getStatusColor = (status: string | null | undefined) => {
     const s = (status || '').toLowerCase();
-    if (s.includes('ativo') || s.includes('faturado') || s.includes('pago')) return THEME.green;
-    if (s.includes('bloqueado') || s.includes('inativo') || s.includes('cancelado')) return THEME.red;
-    if (s.includes('restri') || s.includes('pendente')) return THEME.orange;
-    return THEME.secondary;
+    if (s.includes('ativo') || s.includes('faturado') || s.includes('pago')) return THEME.positive;
+    if (s.includes('bloqueado') || s.includes('inativo') || s.includes('cancelado')) return THEME.danger;
+    return THEME.accent;
   };
 
   const getInitials = (name: string | null | undefined) => {
@@ -198,14 +137,8 @@ export default function CustomersScreen() {
     return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
-  const formatDate = (ts: number | undefined) => {
-    if (!ts) return '--/--/----';
-    return new Date(ts).toLocaleDateString('pt-BR');
-  };
-
   const openDetail = (customer: Customer) => {
     setSelectedCustomer(customer);
-    setDetailTab('info');
     setDetailVisible(true);
     fetchHistory(customer.idExterno);
   };
@@ -219,21 +152,28 @@ export default function CustomersScreen() {
 
   const renderCustomerItem = ({ item }: { item: Customer }) => (
     <TouchableOpacity 
-      style={[styles.itemContainer, { backgroundColor: THEME.card }]}
-      onPress={() => openDetail(item)}
       activeOpacity={0.7}
+      style={[styles.itemRow, { backgroundColor: THEME.card }]}
+      onPress={() => openDetail(item)}
     >
-      <View style={[styles.avatar, { backgroundColor: getStatusColor(item.statusDescricao) + '20' }]}>
-        <Text style={[styles.avatarText, { color: getStatusColor(item.statusDescricao) }]}>
-          {getInitials(item.fantasia || item.nome)}
-        </Text>
-      </View>
       <View style={styles.itemContent}>
-        <Text style={[styles.itemName, { color: THEME.text }]} numberOfLines={1}>{item.fantasia || item.nome}</Text>
-        <Text style={[styles.itemSub, { color: THEME.secondary }]}>{item.cnpj}</Text>
-        <Text style={[styles.itemLoc, { color: THEME.secondary }]}>{item.endereco.cidade}, {item.endereco.uf}</Text>
+        <View style={styles.itemMainInfo}>
+           <Text style={[styles.itemCustomerName, { color: THEME.text }]} numberOfLines={1}>
+              {item.fantasia || item.nome}
+           </Text>
+           <Text style={[styles.itemSubDetail, { color: THEME.secondary }]}>
+              {item.endereco.cidade}, {item.endereco.uf}
+           </Text>
+        </View>
+        
+        <View style={styles.itemRightSide}>
+           <Text style={[styles.itemPriceText, { color: THEME.text }]}>{item.cnpj}</Text>
+           <View style={[styles.statusBadgeSmall, { backgroundColor: getStatusColor(item.statusDescricao) + '15' }]}>
+              <Text style={[styles.statusTextSmall, { color: getStatusColor(item.statusDescricao) }]}>{item.statusDescricao}</Text>
+           </View>
+        </View>
+        <Ionicons name="chevron-forward" size={14} color="#C4C4C6" style={{ marginLeft: 12 }} />
       </View>
-      <Ionicons name="chevron-forward" size={16} color={THEME.border} />
     </TouchableOpacity>
   );
 
@@ -242,47 +182,145 @@ export default function CustomersScreen() {
       <Stack.Screen options={{ 
         title: 'Clientes',
         headerLargeTitle: true,
-        headerBackTitle: 'Voltar',
-        headerStyle: { backgroundColor: THEME.bg },
+        headerTransparent: true,
+        headerBlurEffect: isDark ? 'dark' : 'light',
+        headerTintColor: THEME.primary,
         headerSearchBarOptions: {
-          placeholder: 'Nome ou CNPJ',
+          placeholder: 'Buscar Cliente',
           onChangeText: (e) => setSearch(e.nativeEvent.text),
-          onCancelButtonPress: () => setSearch(''),
-          hideWhenScrolling: false,
+          headerIconColor: THEME.secondary,
         }
       }} />
 
-      <FlatList
-        data={customers}
-        renderItem={renderCustomerItem}
-        keyExtractor={item => item.idExterno}
-        contentContainerStyle={styles.listContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={THEME.accent} />}
-      />
+      {loading && !refreshing ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator color={THEME.accent} size="small" />
+        </View>
+      ) : (
+        <FlatList
+          data={customers}
+          renderItem={renderCustomerItem}
+          keyExtractor={item => item.idExterno}
+          ItemSeparatorComponent={() => <View style={[styles.separatorLine, { backgroundColor: THEME.separator }]} />}
+          contentContainerStyle={styles.listContent}
+          contentInsetAdjustmentBehavior="automatic"
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={THEME.accent} />}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+                <Text style={[styles.emptyText, { color: THEME.secondary }]}>Nenhum cliente</Text>
+            </View>
+          }
+        />
+      )}
 
       <Modal visible={detailVisible} animationType="slide" presentationStyle="pageSheet">
         <View style={[styles.modalBase, { backgroundColor: THEME.bg }]}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setDetailVisible(false)}><Text style={{ color: THEME.accent, fontSize: 17 }}>Fechar</Text></TouchableOpacity>
-            <Text style={[styles.headerTitle, { color: THEME.text }]}>Detalhes</Text>
-            <View style={{ width: 60 }} />
+          <View style={[styles.modalHeader, { borderBottomColor: THEME.separator }]}>
+             <Text style={[styles.modalTitle, { color: THEME.text }]}>Detalhe do Cliente</Text>
+             <TouchableOpacity onPress={() => setDetailVisible(false)} style={styles.modalClose}>
+                <Text style={{ color: THEME.primary, fontWeight: '700', fontSize: 16 }}>OK</Text>
+             </TouchableOpacity>
           </View>
-          <ScrollView>
+          
+          <ScrollView contentContainerStyle={styles.modalScroll} showsVerticalScrollIndicator={false}>
             {selectedCustomer && (
-              <View style={styles.modalHero}>
-                <View style={[styles.heroAvatar, { backgroundColor: getStatusColor(selectedCustomer.statusDescricao) + '15' }]}>
-                  <Text style={[styles.heroAvatarText, { color: getStatusColor(selectedCustomer.statusDescricao) }]}>{getInitials(selectedCustomer.fantasia || selectedCustomer.nome)}</Text>
-                </View>
-                <Text style={[styles.heroName, { color: THEME.text }]}>{selectedCustomer.fantasia || selectedCustomer.nome}</Text>
-                <View style={styles.actionRow}>
-                  <TouchableOpacity style={styles.actionBtn} onPress={() => Linking.openURL(`tel:${selectedCustomer.telefone}`)}><View style={[styles.actionIcon, { backgroundColor: THEME.accent }]}><Ionicons name="call" size={18} color="#FFF" /></View><Text style={styles.actionLabel}>Ligar</Text></TouchableOpacity>
-                  <TouchableOpacity style={styles.actionBtn} onPress={() => Linking.openURL(`whatsapp://send?phone=55${selectedCustomer.telefone?.replace(/\D/g,'')}`)}><View style={[styles.actionIcon, { backgroundColor: '#25D366' }]}><Ionicons name="logo-whatsapp" size={18} color="#FFF" /></View><Text style={styles.actionLabel}>Whats</Text></TouchableOpacity>
-                </View>
-              </View>
+              <>
+               {/* Hero Summary */}
+               <View style={styles.heroSection}>
+                  <View style={[styles.heroAvatar, { backgroundColor: THEME.accent + '15' }]}>
+                     <Text style={[styles.heroAvatarText, { color: THEME.accent }]}>
+                        {getInitials(selectedCustomer.fantasia || selectedCustomer.nome)}
+                     </Text>
+                  </View>
+                  <Text style={[styles.iosLabelTitle, { color: THEME.text }]}>
+                     {selectedCustomer.fantasia || selectedCustomer.nome}
+                  </Text>
+                  <Text style={[styles.iosLabelSub, { color: THEME.secondary }]}>
+                     {selectedCustomer.nome}
+                  </Text>
+               </View>
+
+               {/* Quick Actions */}
+               <View style={styles.actionGrid}>
+                  <TouchableOpacity style={[styles.actionBtn, { backgroundColor: THEME.card }]} onPress={() => Linking.openURL(`tel:${selectedCustomer.telefone}`)}>
+                     <Ionicons name="call" size={20} color={THEME.accent} />
+                     <Text style={[styles.actionLabel, { color: THEME.text }]}>Telefonar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.actionBtn, { backgroundColor: THEME.card }]} onPress={() => Linking.openURL(`whatsapp://send?phone=55${selectedCustomer.telefone?.replace(/\D/g,'')}`)}>
+                     <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
+                     <Text style={[styles.actionLabel, { color: THEME.text }]}>WhatsApp</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.actionBtn, { backgroundColor: THEME.card }]} onPress={() => {
+                        const address = `${selectedCustomer.endereco.logradouro}, ${selectedCustomer.endereco.numero}, ${selectedCustomer.endereco.cidade}-${selectedCustomer.endereco.uf}`;
+                        Linking.openURL(`maps://?q=${encodeURIComponent(address)}`);
+                     }}>
+                     <Ionicons name="map" size={20} color={THEME.primary} />
+                     <Text style={[styles.actionLabel, { color: THEME.text }]}>Mapa</Text>
+                  </TouchableOpacity>
+               </View>
+
+               <Text style={styles.iosGroupLabel}>DADOS DO CLIENTE</Text>
+               <View style={[styles.iosGroupedCard, { backgroundColor: THEME.card }]}>
+                  <View style={styles.iosRow}>
+                      <Text style={[styles.iosLabel, { color: THEME.secondary }]}>CNPJ</Text>
+                      <Text style={[styles.iosValue, { color: THEME.text }]}>{selectedCustomer.cnpj}</Text>
+                  </View>
+                  <View style={[styles.iosSeparator, { backgroundColor: THEME.separator }]} />
+                  <View style={styles.iosRow}>
+                      <Text style={[styles.iosLabel, { color: THEME.secondary }]}>Status</Text>
+                      <Text style={[styles.iosValue, { color: getStatusColor(selectedCustomer.statusDescricao), fontWeight: '700' }]}>
+                        {selectedCustomer.statusDescricao}
+                      </Text>
+                  </View>
+                  <View style={[styles.iosSeparator, { backgroundColor: THEME.separator }]} />
+                  <View style={styles.iosRow}>
+                      <Text style={[styles.iosLabel, { color: THEME.secondary }]}>E-mail</Text>
+                      <Text style={[styles.iosValue, { color: THEME.text }]} numberOfLines={1}>{selectedCustomer.email || 'Não informado'}</Text>
+                  </View>
+               </View>
+
+               <Text style={styles.iosGroupLabel}>ÚLTIMOS PEDIDOS</Text>
+               <View style={[styles.iosGroupedCard, { backgroundColor: THEME.card, paddingHorizontal: 0 }]}>
+                  {historyLoading ? (
+                    <View style={{ padding: 20 }}><ActivityIndicator color={THEME.accent} /></View>
+                  ) : orderHistory.length > 0 ? (
+                    orderHistory.slice(0, 5).map((order, idx) => (
+                      <TouchableOpacity key={idx} activeOpacity={0.6} onPress={() => fetchOrderDetail(order.idExterno)}>
+                        <View style={styles.iosItemRow}>
+                           <View>
+                              <Text style={[styles.iosItemName, { color: THEME.text }]}>#{order.idExterno}</Text>
+                              <Text style={[styles.iosItemRef, { color: THEME.secondary }]}>{new Date(order.cadastradoEm).toLocaleDateString('pt-BR')}</Text>
+                           </View>
+                           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                              <Text style={[styles.iosItemPrice, { color: THEME.text }]}>{formatCurrency(order.valorTotal)}</Text>
+                              <Ionicons name="chevron-forward" size={14} color="#C4C4C6" style={{ marginLeft: 8 }} />
+                           </View>
+                        </View>
+                        {idx < 4 && idx < orderHistory.length - 1 && (
+                          <View style={[styles.iosSeparator, { backgroundColor: THEME.separator, marginLeft: 16 }]} />
+                        )}
+                      </TouchableOpacity>
+                    ))
+                  ) : (
+                    <View style={{ padding: 20 }}><Text style={{ color: THEME.secondary, textAlign: 'center' }}>Nenhum pedido recente</Text></View>
+                  )}
+               </View>
+              </>
             )}
-            {/* Tab logic and list... simplified for restoration */}
           </ScrollView>
         </View>
+
+        {/* Level 2: Order Detail Modal */}
+        <OrderDetailSheet 
+          visible={orderModalVisible} 
+          onClose={() => setOrderModalVisible(false)}
+          order={selectedOrderDetail}
+          loading={orderDetailLoading}
+          theme={THEME}
+          getStatusColor={getStatusColor}
+          formatCurrency={formatCurrency}
+        />
       </Modal>
     </View>
   );
@@ -290,24 +328,47 @@ export default function CustomersScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  listContent: { padding: 16, paddingTop: 20, paddingBottom: 100 },
-  itemContainer: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 12, marginBottom: 10 },
-  avatar: { width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
-  avatarText: { fontSize: 18, fontWeight: '700' },
-  itemContent: { flex: 1 },
-  itemName: { fontSize: 17, fontWeight: '700' },
-  itemSub: { fontSize: 13 },
-  itemLoc: { fontSize: 12 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  listContent: { paddingBottom: 40 },
+  separatorLine: { height: StyleSheet.hairlineWidth, marginLeft: 16 },
+  itemRow: { paddingVertical: 14, paddingHorizontal: 16 },
+  itemContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  itemMainInfo: { flex: 1 },
+  itemCustomerName: { fontSize: 17, fontWeight: '700', marginBottom: 2 },
+  itemSubDetail: { fontSize: 13 },
+  itemRightSide: { alignItems: 'flex-end' },
+  itemPriceText: { fontSize: 15, fontWeight: '400', marginBottom: 4 },
+  statusBadgeSmall: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  statusTextSmall: { fontSize: 10, fontWeight: '600' },
+  emptyContainer: { flex: 1, paddingTop: 100, alignItems: 'center' },
+  emptyText: { fontSize: 17 },
   modalBase: { flex: 1 },
-  modalHeader: { height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, borderBottomWidth: 0.5, borderBottomColor: 'rgba(0,0,0,0.1)' },
-  headerTitle: { fontSize: 17, fontWeight: '600' },
-  modalHero: { alignItems: 'center', padding: 24 },
-  heroAvatar: { width: 90, height: 90, borderRadius: 45, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  heroAvatarText: { fontSize: 36, fontWeight: '700' },
-  heroName: { fontSize: 24, fontWeight: '800' },
-  actionRow: { flexDirection: 'row', marginTop: 24, gap: 12 },
-  actionBtn: { alignItems: 'center', width: 75 },
-  actionIcon: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
-  actionLabel: { fontSize: 11, fontWeight: '500', color: '#0A84FF' },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' }
+  modalHeader: { height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderBottomWidth: StyleSheet.hairlineWidth },
+  modalTitle: { fontSize: 17, fontWeight: '700' },
+  modalClose: { position: 'absolute', right: 16 },
+  modalLoading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  modalScroll: { padding: 16, paddingBottom: 60 },
+  heroSection: { paddingVertical: 24, alignItems: 'center' },
+  iosGroupedCard: { borderRadius: 12, paddingHorizontal: 16, marginBottom: 24, overflow: 'hidden' },
+  iosGroupLabel: { fontSize: 13, fontWeight: '400', color: '#8E8E93', marginLeft: 16, marginBottom: 8, textTransform: 'uppercase' },
+  heroAvatar: { width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+  heroAvatarText: { fontSize: 32, fontWeight: '800' },
+  actionGrid: { flexDirection: 'row', gap: 12, marginBottom: 30 },
+  actionBtn: { flex: 1, borderRadius: 12, padding: 12, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  actionLabel: { fontSize: 11, fontWeight: '700', marginTop: 6 },
+  iosRow: { height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  iosRowCol: { paddingVertical: 20, alignItems: 'center' },
+  iosLabel: { fontSize: 17, fontWeight: '400' },
+  iosLabelTitle: { fontSize: 22, fontWeight: '800', marginBottom: 4, textAlign: 'center' },
+  iosLabelSub: { fontSize: 15, fontWeight: '400', textAlign: 'center' },
+  iosHeroValue: { fontSize: 20, fontWeight: '900' },
+  statusTag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  statusTagText: { fontSize: 12, fontWeight: '800' },
+  iosValue: { fontSize: 17, fontWeight: '400' },
+  iosSeparator: { height: StyleSheet.hairlineWidth },
+  iosItemRow: { padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  iosItemName: { fontSize: 15, fontWeight: '700', marginBottom: 2 },
+  iosItemRef: { fontSize: 13 },
+  iosItemPrice: { fontSize: 15, fontWeight: '700' },
+  iosItemPriceSub: { fontSize: 12, marginTop: 2 },
 });
