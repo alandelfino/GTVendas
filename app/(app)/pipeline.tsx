@@ -119,6 +119,7 @@ export default function PipelineScreen() {
       return Alert.alert('Aviso', 'Preencha todos os campos.');
     }
     try {
+      setActionLoading(true);
       if (data.id) {
         await api.put(`/api/rep/pipelines/${data.id}`, data);
       } else {
@@ -129,6 +130,8 @@ export default function PipelineScreen() {
       init();
     } catch (err) {
       Alert.alert('Erro', 'Não foi possível salvar o funil.');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -172,6 +175,7 @@ export default function PipelineScreen() {
   const saveStage = async () => {
     if (!editingStage?.nome || !selectedBoard) return;
     try {
+      setActionLoading(true);
       const payload = {
         nome: editingStage.nome,
         cor: editingStage.cor || '#0A84FF',
@@ -188,6 +192,8 @@ export default function PipelineScreen() {
       await init(false, true);
     } catch (err) {
       Alert.alert('Erro', 'Falha ao salvar estágio.');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -209,6 +215,8 @@ export default function PipelineScreen() {
     } catch (err) {
       console.error('Drag End Sync Error:', err);
       init(false, true);
+    } finally {
+      setActionLoading(false);
     }
   };
 
