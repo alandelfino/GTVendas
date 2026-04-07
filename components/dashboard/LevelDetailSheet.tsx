@@ -47,7 +47,7 @@ export const LevelDetailSheet = ({
                 <View style={[styles.header, { borderBottomColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
                     <View style={styles.headerIndicator} />
                     <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                        <Ionicons name="chevron-down" size={24} color={THEME.navText} />
+                        <Ionicons name="chevron-down" size={24} color={THEME.accent} />
                     </TouchableOpacity>
                     <Text style={[styles.headerTitle, { color: THEME.text }]}>Métricas do Nível</Text>
                 </View>

@@ -220,7 +220,7 @@ export default function CustomersScreen() {
           <View style={[styles.modalHeader, { borderBottomColor: THEME.separator }]}>
              <Text style={[styles.modalTitle, { color: THEME.text }]}>Detalhes do Cliente</Text>
              <TouchableOpacity onPress={() => setDetailVisible(false)} style={styles.modalClose}>
-                <Text style={{ color: THEME.primary, fontWeight: '700', fontSize: 16 }}>OK</Text>
+                <Text style={{ color: THEME.accent, fontWeight: '700', fontSize: 16 }}>OK</Text>
              </TouchableOpacity>
           </View>
           

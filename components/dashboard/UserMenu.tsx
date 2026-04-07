@@ -40,7 +40,7 @@ export const UserMenu = ({
                 <View style={[styles.header, { borderBottomColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
                     <View style={styles.headerIndicator} />
                     <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                        <Ionicons name="close-circle" size={26} color={THEME.secondaryText} />
+                        <Ionicons name="close-circle" size={26} color={THEME.accent} />
                     </TouchableOpacity>
                     <Text style={[styles.headerTitle, { color: THEME.text }]}>Sua Conta</Text>
                 </View>
