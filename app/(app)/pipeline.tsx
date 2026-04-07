@@ -135,6 +135,7 @@ export default function PipelineScreen() {
   const saveBoard = async () => {
     if (!editingBoard?.nome) return Alert.alert('Aviso', 'O Board precisa de um nome.');
     try {
+      setActionLoading(true);
       if (editingBoard.id) {
         await api.put(`/api/rep/pipeline-boards/${editingBoard.id}`, { nome: editingBoard.nome });
       } else {
@@ -146,6 +147,8 @@ export default function PipelineScreen() {
       await init(false, true);
     } catch (err) {
       Alert.alert('Erro', 'Não foi possível salvar o quadro.');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -286,34 +289,49 @@ export default function PipelineScreen() {
 
   useEffect(() => { init(); }, []);
   
-  const headerOptions = (
-    <Stack.Screen options={{ 
-      title: 'Funil de Vendas',
-      headerLargeTitle: true,
-      headerTransparent: true,
-      headerBackTitle: 'Voltar',
-      headerBlurEffect: isDark ? 'dark' : 'light',
-      headerTintColor: '#F9B252',
-      headerRight: () => (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 18 }}>
-          <TouchableOpacity onPress={() => { closeOpenRow(); setBoardManagerVisible(true); }} hitSlop={{ top: 15, bottom: 15, left: 10, right: 5 }}>
-            <Ionicons name="layers-outline" size={24} color={THEME.accent} />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            onPress={() => { closeOpenRow(); setEditingPipeline({ boardId: boards[0]?.id }); setPipelineEditorVisible(true); }} 
-            hitSlop={{ top: 15, bottom: 15, left: 5, right: 10 }}
-          >
-            <Ionicons name="add" size={28} color={THEME.accent} />
-          </TouchableOpacity>
-        </View>
-      )
-    }} />
-  );
+  useEffect(() => { init(); }, []);
+  
+  function HeaderComponent() {
+    return (
+      <Stack.Screen options={{ 
+        title: 'Funil de Vendas',
+        headerLargeTitle: true,
+        headerTransparent: true,
+        headerBackTitle: 'Voltar',
+        headerBlurEffect: isDark ? 'dark' : 'light',
+        headerTintColor: '#F9B252',
+        headerRight: () => (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 18 }}>
+            <TouchableOpacity onPress={() => { closeOpenRow(); setBoardManagerVisible(true); }} hitSlop={{ top: 15, bottom: 15, left: 10, right: 5 }}>
+              <Ionicons name="layers-outline" size={24} color={THEME.accent} />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              onPress={() => { 
+                closeOpenRow(); 
+                if (boards.length === 0) {
+                  Alert.alert('Aviso', 'Você precisa cadastrar pelo menos um Quadro (Board) com estágios antes de criar um novo Funil de Vendas.', [
+                    { text: 'Cancelar', style: 'cancel' },
+                    { text: 'OK, Criar Quadro', onPress: () => setBoardManagerVisible(true) }
+                  ]);
+                  return;
+                }
+                setEditingPipeline({ boardId: boards[0]?.id }); 
+                setPipelineEditorVisible(true); 
+              }} 
+              hitSlop={{ top: 15, bottom: 15, left: 5, right: 10 }}
+            >
+              <Ionicons name="add" size={28} color={THEME.accent} />
+            </TouchableOpacity>
+          </View>
+        )
+      }} />
+    );
+  }
   
   if (loading) {
     return (
       <View style={[styles.centered, { backgroundColor: THEME.bg }]}>
-        {headerOptions}
+        <HeaderComponent />
         <ActivityIndicator color={THEME.accent} size="large" />
       </View>
     );
@@ -338,7 +356,7 @@ export default function PipelineScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: THEME.bg }]}>
-      {headerOptions}
+      <HeaderComponent />
 
       <FlatList 
         data={pipelines}
@@ -349,11 +367,23 @@ export default function PipelineScreen() {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <View style={{ height: 100 }} />
-            <Ionicons name="filter" size={80} color={THEME.border} />
-            <Text style={[styles.emptyTitle, { color: THEME.text }]}>Sem Funis Ativos</Text>
-            <Text style={[styles.emptySubtitle, { color: THEME.secondary }]}>
-              Crie um novo funil para organizar sua prospecção de vendas por coleção.
+            <Ionicons name={boards.length === 0 ? "layers-outline" : "filter"} size={80} color={THEME.border} />
+            <Text style={[styles.emptyTitle, { color: THEME.text }]}>
+              {boards.length === 0 ? 'Comece por um Quadro' : 'Sem Pipelines Ativos'}
             </Text>
+            <Text style={[styles.emptySubtitle, { color: THEME.secondary }]}>
+              {boards.length === 0 
+                ? 'Para organizar suas vendas, você deve primeiro criar um Quadro e definir seus estágios (Ex: Prospecção, Negociação).' 
+                : 'Crie um novo pipeline para organizar sua prospecção de vendas por coleção.'}
+            </Text>
+            {boards.length === 0 && (
+              <TouchableOpacity 
+                style={[styles.emptyBtn, { backgroundColor: THEME.accent }]}
+                onPress={() => setBoardManagerVisible(true)}
+              >
+                <Text style={styles.emptyBtnText}>Criar Primeiro Quadro</Text>
+              </TouchableOpacity>
+            )}
           </View>
         }
         renderItem={({ item }) => (
@@ -407,6 +437,7 @@ export default function PipelineScreen() {
         onStageDragEnd={onStageDragEnd}
         deleteStage={deleteStage}
         deleteBoard={deleteBoard}
+        actionLoading={actionLoading}
         THEME={THEME}
         isDark={isDark}
       />
@@ -442,7 +473,7 @@ export default function PipelineScreen() {
         <View style={styles.globalLoader}>
           <View style={[styles.loaderBox, { backgroundColor: isDark ? 'rgba(44,44,46,0.8)' : 'rgba(255,255,255,0.9)' }]}>
             <ActivityIndicator color={THEME.accent} size="large" />
-            <Text style={[styles.loaderText, { color: THEME.text }]}>Sincronizando...</Text>
+            <Text style={[styles.loaderText, { color: THEME.text }]}>Atualizando Pipeline...</Text>
           </View>
         </View>
       )}
@@ -457,6 +488,8 @@ const styles = StyleSheet.create({
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 100, paddingHorizontal: 40 },
   emptyTitle: { fontSize: 24, fontWeight: '800', marginTop: 24 },
   emptySubtitle: { fontSize: 16, textAlign: 'center', marginTop: 12, lineHeight: 22, opacity: 0.7 },
+  emptyBtn: { marginTop: 24, paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12 },
+  emptyBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
   rightActionsContainer: { 
     flexDirection: 'row', 
     alignItems: 'center', 

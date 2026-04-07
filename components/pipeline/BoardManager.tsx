@@ -6,6 +6,7 @@ import {
   TouchableOpacity, 
   TextInput, 
   ScrollView, 
+  ActivityIndicator,
   StyleSheet,
   Pressable,
   KeyboardAvoidingView,
@@ -34,6 +35,7 @@ interface BoardManagerProps {
   saveStage: () => void;
   onStageDragEnd: (params: { data: Stage[] }) => void;
   deleteStage: (id: number) => void;
+  actionLoading: boolean;
   THEME: Theme;
   isDark: boolean;
 }
@@ -55,6 +57,7 @@ export default function BoardManager({
   saveStage,
   onStageDragEnd,
   deleteStage,
+  actionLoading,
   THEME,
   isDark
 }: BoardManagerProps) {
@@ -107,10 +110,13 @@ export default function BoardManager({
     <Modal visible={visible} presentationStyle="pageSheet" animationType="slide">
       <View style={[styles.modalBase, { backgroundColor: THEME.bg }]}>
         <View style={[styles.modalHeader, { borderBottomColor: THEME.border }]}>
+           <TouchableOpacity onPress={onClose} style={styles.modalLeftAction}>
+             <Text style={{ color: THEME.accent, fontSize: 17, fontWeight: '400' }}>Fechar</Text>
+           </TouchableOpacity>
            <View style={styles.modalHandle} />
            <Text style={[styles.headerTitle, { color: THEME.text }]}>Quadros de Trabalho</Text>
-           <TouchableOpacity onPress={onClose} style={styles.modalClose}>
-             <Text style={{ color: THEME.accent, fontSize: 17, fontWeight: '500' }}>OK</Text>
+           <TouchableOpacity onPress={() => setEditingBoard({ nome: '' })} style={styles.modalClose}>
+             <Text style={{ color: THEME.accent, fontSize: 17, fontWeight: '500' }}>Novo</Text>
            </TouchableOpacity>
         </View>
         
@@ -157,7 +163,7 @@ export default function BoardManager({
                 <View style={styles.modalHandle} />
                 <Text style={[styles.headerTitle, { color: THEME.text }]}>{selectedBoard?.nome}</Text>
                 <TouchableOpacity onPress={() => setSelectedBoard(null)} style={styles.modalClose}>
-                  <Text style={{ color: THEME.accent, fontSize: 17, fontWeight: '500' }}>Concluído</Text>
+                  <Text style={{ color: THEME.accent, fontSize: 17, fontWeight: '600' }}>Concluído</Text>
                 </TouchableOpacity>
               </View>
               
@@ -211,31 +217,42 @@ export default function BoardManager({
            </View>
         )}
 
-        <Modal visible={!!editingBoard} transparent animationType="fade">
-           <KeyboardAvoidingView 
-             behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
-             style={{ flex: 1 }}
-           >
-             <Pressable style={styles.alertOverlay} onPress={() => setEditingBoard(null)}>
-                <Pressable style={[styles.alertBox, { backgroundColor: THEME.card }]}>
-                  <Text style={[styles.alertTitle, { color: THEME.text }]}>{editingBoard?.id ? 'Renomear Quadro' : 'Novo Quadro'}</Text>
-                  <TextInput 
-                    style={[styles.alertInput, { color: THEME.text, borderColor: THEME.border }]}
-                    value={editingBoard?.nome}
-                    onChangeText={v => setEditingBoard({...editingBoard, nome: v})}
-                    autoFocus
-                  />
-                  <View style={styles.alertActionRow}>
-                     <TouchableOpacity style={styles.alertBtn} onPress={() => setEditingBoard(null)}>
-                        <Text style={{ color: THEME.accent }}>Cancelar</Text>
-                     </TouchableOpacity>
-                     <TouchableOpacity style={styles.alertBtn} onPress={saveBoard}>
-                        <Text style={{ color: THEME.accent, fontWeight: '700' }}>Salvar</Text>
-                     </TouchableOpacity>
-                  </View>
-                </Pressable>
-             </Pressable>
-           </KeyboardAvoidingView>
+        <Modal visible={!!editingBoard} presentationStyle="pageSheet" animationType="slide">
+           <View style={[styles.modalBase, { backgroundColor: THEME.bg }]}>
+             <View style={[styles.modalHeader, { borderBottomColor: THEME.border }]}>
+               <View style={styles.modalHandle} />
+               <Text style={[styles.headerTitle, { color: THEME.text }]}>
+                 {editingBoard?.id ? 'Renomear Quadro' : 'Novo Quadro'}
+               </Text>
+               <TouchableOpacity onPress={() => setEditingBoard(null)} style={styles.modalClose}>
+                 <Text style={{ color: THEME.accent, fontSize: 17, fontWeight: '400' }}>Cancelar</Text>
+               </TouchableOpacity>
+             </View>
+
+             <View style={{ padding: 20 }}>
+                <Text style={[styles.sectionLabel, { color: THEME.secondary }]}>NOME DO QUADRO</Text>
+                <TextInput 
+                  style={[styles.sheetInput, { color: THEME.text, backgroundColor: THEME.card, borderColor: THEME.border }]}
+                  placeholder="Ex: Vendas Internas, Leads..."
+                  placeholderTextColor={THEME.secondary}
+                  value={editingBoard?.nome}
+                  onChangeText={v => setEditingBoard({...editingBoard!, nome: v})}
+                  autoFocus
+                />
+
+                <TouchableOpacity 
+                  style={[styles.primaryBtn, { backgroundColor: THEME.accent, opacity: actionLoading ? 0.6 : 1 }]} 
+                  onPress={saveBoard}
+                  disabled={actionLoading}
+                >
+                  {actionLoading ? (
+                    <ActivityIndicator color="#FFF" />
+                  ) : (
+                    <Text style={styles.primaryBtnText}>Salvar Quadro</Text>
+                  )}
+                </TouchableOpacity>
+             </View>
+           </View>
         </Modal>
 
         <StageEditor 
@@ -246,6 +263,15 @@ export default function BoardManager({
            setEditingStage={setEditingStage}
            THEME={THEME}
         />
+
+        {actionLoading && (
+          <View style={styles.actionLoaderContainer}>
+            <View style={[styles.actionLoaderBox, { backgroundColor: isDark ? 'rgba(44,44,46,0.9)' : 'rgba(255,255,255,0.95)' }]}>
+              <ActivityIndicator color={THEME.accent} size="large" />
+              <Text style={[styles.actionLoaderText, { color: THEME.text }]}>Sincronizando...</Text>
+            </View>
+          </View>
+        )}
       </View>
     </Modal>
   );
@@ -257,6 +283,7 @@ const createStyles = (THEME: Theme, isDark: boolean) => StyleSheet.create({
   modalHandle: { position: 'absolute', top: 8, width: 36, height: 5, borderRadius: 2.5, backgroundColor: '#C7C7CC' },
   headerTitle: { fontSize: 17, fontWeight: '700', marginTop: 10 },
   modalClose: { position: 'absolute', right: 16, marginTop: 10 },
+  modalLeftAction: { position: 'absolute', left: 16, marginTop: 10 },
   insetGroup: { borderRadius: 10, overflow: 'hidden' },
   boardRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, height: 54 },
   sectionLabel: { fontSize: 13, fontWeight: '600', marginLeft: 8, marginBottom: 8, marginTop: 24, textTransform: 'uppercase' },
@@ -298,4 +325,46 @@ const createStyles = (THEME: Theme, isDark: boolean) => StyleSheet.create({
     borderRadius: 12,
     marginLeft: 8
   },
+  sheetInput: {
+    height: 54,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    fontSize: 17,
+    marginBottom: 20
+  },
+  primaryBtn: {
+    height: 54,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 10
+  },
+  primaryBtnText: {
+    color: '#FFF',
+    fontSize: 17,
+    fontWeight: '700'
+  },
+  actionLoaderContainer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999
+  },
+  actionLoaderBox: {
+    padding: 30,
+    borderRadius: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 10
+  },
+  actionLoaderText: {
+    marginTop: 15,
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: -0.3
+  }
 });

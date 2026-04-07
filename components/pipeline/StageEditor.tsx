@@ -37,10 +37,13 @@ export default function StageEditor({
     <Modal visible={visible} presentationStyle="pageSheet" animationType="slide">
       <View style={[styles.modalBase, { backgroundColor: THEME.bg }]}>
         <View style={[styles.modalHeader, { borderBottomColor: THEME.border }]}>
+          <TouchableOpacity onPress={onClose} style={styles.modalLeftAction}>
+            <Text style={{ color: THEME.accent, fontWeight: '400', fontSize: 17 }}>Cancelar</Text>
+          </TouchableOpacity>
           <View style={styles.modalHandle} />
           <Text style={[styles.modalTitle, { color: THEME.text }]}>{editingStage?.id ? 'Editar Estágio' : 'Novo Estágio'}</Text>
           <TouchableOpacity onPress={() => onSave(editingStage || {})} style={styles.modalClose}>
-            <Text style={{ color: THEME.accent, fontWeight: '500', fontSize: 17 }}>Salvar</Text>
+            <Text style={{ color: THEME.accent, fontWeight: '600', fontSize: 17 }}>Salvar</Text>
           </TouchableOpacity>
         </View>
 
@@ -87,6 +90,7 @@ const createStyles = (THEME: Theme, isDark: boolean) => StyleSheet.create({
   modalHandle: { position: 'absolute', top: 8, width: 36, height: 5, borderRadius: 2.5, backgroundColor: '#C7C7CC' },
   modalTitle: { fontSize: 17, fontWeight: '700', marginTop: 10 },
   modalClose: { position: 'absolute', right: 16, marginTop: 10 },
+  modalLeftAction: { position: 'absolute', left: 16, marginTop: 10 },
   label: { fontSize: 13, fontWeight: '600', letterSpacing: 0.5, marginBottom: 8 },
   insetGroup: { borderRadius: 10, overflow: 'hidden', marginBottom: 24 },
   input: { height: 44, paddingHorizontal: 14, fontSize: 17 },

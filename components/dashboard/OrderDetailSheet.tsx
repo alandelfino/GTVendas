@@ -60,7 +60,7 @@ export default function OrderDetailSheet({
                     <View style={styles.modalHandle} />
                     <Text style={[styles.modalTitle, { color: theme.text }]}>Detalhe do Pedido</Text>
                     <TouchableOpacity onPress={onClose} style={styles.modalClose}>
-                        <Text style={{ color: theme.accent, fontWeight: '500', fontSize: 17 }}>OK</Text>
+                        <Text style={{ color: theme.accent, fontWeight: '600', fontSize: 17 }}>OK</Text>
                     </TouchableOpacity>
                 </View>
 

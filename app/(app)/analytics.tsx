@@ -182,22 +182,24 @@ export default function AnalyticsScreen() {
     }]
   };
 
-  const headerOptions = (
-    <Stack.Screen options={{ 
-      headerShown: true,
-      title: 'Analytics Comercial',
-      headerLargeTitle: true,
-      headerBackTitle: 'Voltar',
-      headerTransparent: true,
-      headerBlurEffect: isDark ? 'dark' : 'light',
-      headerTintColor: THEME.accent,
-    }} />
-  );
+  function HeaderComponent() {
+    return (
+      <Stack.Screen options={{ 
+        headerShown: true,
+        title: 'Analytics Comercial',
+        headerLargeTitle: true,
+        headerBackTitle: 'Voltar',
+        headerTransparent: true,
+        headerBlurEffect: isDark ? 'dark' : 'light',
+        headerTintColor: THEME.accent,
+      }} />
+    );
+  }
 
   if (loading && !refreshing) {
      return (
        <View style={styles.centered}>
-         {headerOptions}
+         <HeaderComponent />
          <ActivityIndicator color={THEME.accent} size="small" />
        </View>
      );
@@ -205,7 +207,7 @@ export default function AnalyticsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: THEME.bg }]}>
-      {headerOptions}
+      <HeaderComponent />
         <ScrollView 
           style={styles.container}
           contentContainerStyle={[styles.scrollContent, { paddingTop: (insets.top > 0 ? insets.top + 120 : 140) }]}
@@ -418,7 +420,7 @@ export default function AnalyticsScreen() {
             <View style={styles.modalHandle} />
             <Text style={[styles.modalTitle, { color: THEME.text }]}>Coleção</Text>
             <TouchableOpacity onPress={() => setColModalVisible(false)} style={styles.modalClose}>
-              <Text style={{ color: THEME.accent, fontSize: 17, fontWeight: '500' }}>OK</Text>
+              <Text style={{ color: THEME.accent, fontSize: 17, fontWeight: '600' }}>OK</Text>
             </TouchableOpacity>
           </View>
 
@@ -452,7 +454,7 @@ export default function AnalyticsScreen() {
                 <Text style={[styles.modalItemText, { color: THEME.text }, item.idExterno === selectedColecao && { color: THEME.accent, fontWeight: '700' }]}>
                   {item.nome}
                 </Text>
-                {item.idExterno === selectedColecao && <Ionicons name="checkmark-circle" size={22} color={THEME.accent} />}
+                {item.idExterno === selectedColecao && <Ionicons name="checkmark-circle" size={22} color={THEME.accent} style={{ marginRight: 10 }} />}
               </TouchableOpacity>
             )}
           />

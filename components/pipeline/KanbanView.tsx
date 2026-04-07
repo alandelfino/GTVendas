@@ -76,32 +76,14 @@ export default function KanbanView({
   );
 
   return (
-    <Modal visible={visible} presentationStyle="fullScreen" animationType="slide">
+    <Modal visible={visible} presentationStyle="pageSheet" animationType="slide">
       <View style={[styles.modalBase, { backgroundColor: THEME.bg }]}>
-        <View style={[
-          styles.modalHeader, 
-          { borderBottomColor: THEME.border, paddingTop: insets.top, height: 56 + insets.top }
-        ]}>
-          <TouchableOpacity 
-            onPress={onClose}
-            style={{ flexDirection: 'row', alignItems: 'center', width: 80 }}
-            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-          >
-            <Ionicons name="chevron-back" size={24} color={THEME.accent} />
-            <Text style={{ color: THEME.accent, fontSize: 17, marginLeft: 5 }}>Voltar</Text>
+        <View style={[styles.modalHeader, { borderBottomColor: THEME.border }]}>
+          <View style={styles.modalHandle} />
+          <Text style={[styles.modalTitle, { color: THEME.text }]}>{selectedPipeline?.nome}</Text>
+          <TouchableOpacity onPress={onClose} style={styles.modalClose}>
+            <Text style={{ color: THEME.accent, fontWeight: '600', fontSize: 17 }}>OK</Text>
           </TouchableOpacity>
-          
-          <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 8 }}>
-            <Text 
-              style={[styles.headerTitle, { color: THEME.text }]} 
-              numberOfLines={1}
-              ellipsizeMode="tail"
-            >
-              {selectedPipeline?.nome}
-            </Text>
-          </View>
-
-          <View style={{ width: 80 }} />
         </View>
 
         <View style={styles.kanbanTabWrapper}>
@@ -198,8 +180,10 @@ export default function KanbanView({
 
 const createStyles = (THEME: Theme, insets: any) => StyleSheet.create({
   modalBase: { flex: 1 },
-  modalHeader: { height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, borderBottomWidth: 0.5 },
-  headerTitle: { fontSize: 17, fontWeight: '700' },
+  modalHeader: { height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderBottomWidth: 0.5 },
+  modalHandle: { position: 'absolute', top: 8, width: 36, height: 5, borderRadius: 2.5, backgroundColor: '#C7C7CC' },
+  modalTitle: { fontSize: 17, fontWeight: '700', marginTop: 10 },
+  modalClose: { position: 'absolute', right: 16, marginTop: 10 },
   kanbanTabWrapper: { borderBottomWidth: 0.5, borderBottomColor: 'rgba(0,0,0,0.1)' },
   kanbanTabList: { paddingHorizontal: 16, height: 50, alignItems: 'center' },
   kanbanTab: { paddingHorizontal: 15, height: '100%', flexDirection: 'row', alignItems: 'center', marginRight: 10 },

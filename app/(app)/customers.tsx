@@ -243,24 +243,45 @@ export default function CustomersScreen() {
                   </Text>
                </View>
 
-               {/* Quick Actions */}
-               <View style={styles.actionGrid}>
-                  <TouchableOpacity style={[styles.actionBtn, { backgroundColor: THEME.card }]} onPress={() => Linking.openURL(`tel:${selectedCustomer.telefone}`)}>
-                     <Ionicons name="call" size={20} color={THEME.accent} />
-                     <Text style={[styles.actionLabel, { color: THEME.text }]}>Telefonar</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.actionBtn, { backgroundColor: THEME.card }]} onPress={() => Linking.openURL(`whatsapp://send?phone=55${selectedCustomer.telefone?.replace(/\D/g,'')}`)}>
-                     <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
-                     <Text style={[styles.actionLabel, { color: THEME.text }]}>WhatsApp</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.actionBtn, { backgroundColor: THEME.card }]} onPress={() => {
-                        const address = `${selectedCustomer.endereco.logradouro}, ${selectedCustomer.endereco.numero}, ${selectedCustomer.endereco.cidade}-${selectedCustomer.endereco.uf}`;
-                        Linking.openURL(`maps://?q=${encodeURIComponent(address)}`);
-                     }}>
-                     <Ionicons name="map" size={20} color={THEME.primary} />
-                     <Text style={[styles.actionLabel, { color: THEME.text }]}>Mapa</Text>
-                  </TouchableOpacity>
-               </View>
+                {/* Quick Actions */}
+                {(() => {
+                   const hasPhone = !!selectedCustomer.telefone && selectedCustomer.telefone.trim().length > 0;
+                   return (
+                     <View style={styles.actionGrid}>
+                        <TouchableOpacity 
+                           disabled={!hasPhone}
+                           activeOpacity={0.7} 
+                           style={[styles.actionBtn, { backgroundColor: THEME.card, opacity: hasPhone ? 1 : 0.3 }]} 
+                           onPress={() => Linking.openURL(`tel:${selectedCustomer.telefone}`)}
+                        >
+                           <Ionicons name="call" size={20} color={hasPhone ? THEME.accent : "#8E8E93"} />
+                           <Text style={[styles.actionLabel, { color: hasPhone ? THEME.text : "#8E8E93" }]}>Telefonar</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity 
+                           disabled={!hasPhone}
+                           activeOpacity={0.7} 
+                           style={[styles.actionBtn, { backgroundColor: THEME.card, opacity: hasPhone ? 1 : 0.3 }]} 
+                           onPress={() => Linking.openURL(`whatsapp://send?phone=55${selectedCustomer.telefone?.replace(/\D/g,'')}`)}
+                        >
+                           <Ionicons name="logo-whatsapp" size={20} color={hasPhone ? "#25D366" : "#8E8E93"} />
+                           <Text style={[styles.actionLabel, { color: hasPhone ? THEME.text : "#8E8E93" }]}>WhatsApp</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity 
+                           activeOpacity={0.7} 
+                           style={[styles.actionBtn, { backgroundColor: THEME.card }]} 
+                           onPress={() => {
+                              const address = `${selectedCustomer.endereco.logradouro}, ${selectedCustomer.endereco.numero}, ${selectedCustomer.endereco.cidade}-${selectedCustomer.endereco.uf}`;
+                              Linking.openURL(`maps://?q=${encodeURIComponent(address)}`);
+                           }}
+                        >
+                           <Ionicons name="map" size={20} color="#007AFF" />
+                           <Text style={[styles.actionLabel, { color: THEME.text }]}>Mapa</Text>
+                        </TouchableOpacity>
+                     </View>
+                   );
+                })()}
 
                <Text style={styles.iosGroupLabel}>DADOS DO CLIENTE</Text>
                <View style={[styles.iosGroupedCard, { backgroundColor: THEME.card }]}>
@@ -282,7 +303,7 @@ export default function CustomersScreen() {
                   </View>
                </View>
 
-               <Text style={styles.iosGroupLabel}>ÚLTIMOS PEDIDOS</Text>
+               <Text style={[styles.iosGroupLabel, { marginTop: 32 }]}>ÚLTIMOS PEDIDOS</Text>
                <View style={[styles.iosGroupedCard, { backgroundColor: THEME.card, paddingHorizontal: 0 }]}>
                   {historyLoading ? (
                     <View style={{ padding: 20 }}><ActivityIndicator color={THEME.accent} /></View>
@@ -352,18 +373,18 @@ const styles = StyleSheet.create({
   modalLoading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   modalScroll: { padding: 16, paddingBottom: 60 },
   heroSection: { paddingVertical: 24, alignItems: 'center' },
-  iosGroupedCard: { borderRadius: 12, paddingHorizontal: 16, marginBottom: 24, overflow: 'hidden' },
+  iosGroupedCard: { borderRadius: 12, paddingHorizontal: 16, marginBottom: 8, overflow: 'hidden' },
   iosGroupLabel: { fontSize: 13, fontWeight: '400', color: '#8E8E93', marginLeft: 16, marginBottom: 8, textTransform: 'uppercase' },
-  heroAvatar: { width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+  heroAvatar: { width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3 },
   heroAvatarText: { fontSize: 32, fontWeight: '800' },
-  actionGrid: { flexDirection: 'row', gap: 12, marginBottom: 30 },
-  actionBtn: { flex: 1, borderRadius: 12, padding: 12, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  actionLabel: { fontSize: 11, fontWeight: '700', marginTop: 6 },
-  iosRow: { height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  actionGrid: { flexDirection: 'row', gap: 12, marginBottom: 24, paddingHorizontal: 4 },
+  actionBtn: { flex: 1, borderRadius: 14, padding: 12, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 1 },
+  actionLabel: { fontSize: 11, fontWeight: '600', marginTop: 6 },
+  iosRow: { height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   iosRowCol: { paddingVertical: 20, alignItems: 'center' },
   iosLabel: { fontSize: 17, fontWeight: '400' },
-  iosLabelTitle: { fontSize: 22, fontWeight: '800', marginBottom: 4, textAlign: 'center' },
-  iosLabelSub: { fontSize: 15, fontWeight: '400', textAlign: 'center' },
+  iosLabelTitle: { fontSize: 24, fontWeight: '800', marginBottom: 4, textAlign: 'center', letterSpacing: -0.5 },
+  iosLabelSub: { fontSize: 15, fontWeight: '500', textAlign: 'center', opacity: 0.6 },
   iosHeroValue: { fontSize: 20, fontWeight: '900' },
   statusTag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   statusTagText: { fontSize: 12, fontWeight: '800' },
