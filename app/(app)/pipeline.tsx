@@ -285,10 +285,35 @@ export default function PipelineScreen() {
   };
 
   useEffect(() => { init(); }, []);
-
+  
+  const headerOptions = (
+    <Stack.Screen options={{ 
+      title: 'Funil de Vendas',
+      headerLargeTitle: true,
+      headerTransparent: true,
+      headerBackTitle: 'Voltar',
+      headerBlurEffect: isDark ? 'dark' : 'light',
+      headerTintColor: '#F9B252',
+      headerRight: () => (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 18 }}>
+          <TouchableOpacity onPress={() => { closeOpenRow(); setBoardManagerVisible(true); }} hitSlop={{ top: 15, bottom: 15, left: 10, right: 5 }}>
+            <Ionicons name="layers-outline" size={24} color={THEME.accent} />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => { closeOpenRow(); setEditingPipeline({ boardId: boards[0]?.id }); setPipelineEditorVisible(true); }} 
+            hitSlop={{ top: 15, bottom: 15, left: 5, right: 10 }}
+          >
+            <Ionicons name="add" size={28} color={THEME.accent} />
+          </TouchableOpacity>
+        </View>
+      )
+    }} />
+  );
+  
   if (loading) {
     return (
       <View style={[styles.centered, { backgroundColor: THEME.bg }]}>
+        {headerOptions}
         <ActivityIndicator color={THEME.accent} size="large" />
       </View>
     );
@@ -313,27 +338,7 @@ export default function PipelineScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: THEME.bg }]}>
-      <Stack.Screen options={{ 
-        title: 'Funil de Vendas',
-        headerLargeTitle: true,
-        headerTransparent: true,
-        headerBackTitle: 'Voltar',
-        headerBlurEffect: isDark ? 'dark' : 'light',
-        headerTintColor: '#F9B252',
-        headerRight: () => (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 18 }}>
-            <TouchableOpacity onPress={() => { closeOpenRow(); setBoardManagerVisible(true); }} hitSlop={{ top: 15, bottom: 15, left: 10, right: 5 }}>
-              <Ionicons name="layers-outline" size={24} color={THEME.accent} />
-            </TouchableOpacity>
-            <TouchableOpacity 
-              onPress={() => { closeOpenRow(); setEditingPipeline({ boardId: boards[0]?.id }); setPipelineEditorVisible(true); }} 
-              hitSlop={{ top: 15, bottom: 15, left: 5, right: 10 }}
-            >
-              <Ionicons name="add" size={28} color={THEME.accent} />
-            </TouchableOpacity>
-          </View>
-        )
-      }} />
+      {headerOptions}
 
       <FlatList 
         data={pipelines}

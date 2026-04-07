@@ -182,22 +182,30 @@ export default function AnalyticsScreen() {
     }]
   };
 
+  const headerOptions = (
+    <Stack.Screen options={{ 
+      headerShown: true,
+      title: 'Analytics Comercial',
+      headerLargeTitle: true,
+      headerBackTitle: 'Voltar',
+      headerTransparent: true,
+      headerBlurEffect: isDark ? 'dark' : 'light',
+      headerTintColor: THEME.accent,
+    }} />
+  );
+
+  if (loading && !refreshing) {
+     return (
+       <View style={styles.centered}>
+         {headerOptions}
+         <ActivityIndicator color={THEME.accent} size="small" />
+       </View>
+     );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: THEME.bg }]}>
-      <Stack.Screen options={{ 
-        headerShown: true,
-        title: 'Histórico de Metas',
-        headerLargeTitle: true,
-        headerBackTitle: 'Voltar',
-        headerTransparent: true,
-        headerBlurEffect: isDark ? 'dark' : 'light',
-        headerStyle: { backgroundColor: THEME.bg },
-        headerTintColor: THEME.accent,
-      }} />
-
-      {loading && !refreshing ? (
-         <View style={styles.centered}><ActivityIndicator color={THEME.accent} size="small" /></View>
-      ) : (
+      {headerOptions}
         <ScrollView 
           style={styles.container}
           contentContainerStyle={[styles.scrollContent, { paddingTop: (insets.top > 0 ? insets.top + 120 : 140) }]}
@@ -396,8 +404,7 @@ export default function AnalyticsScreen() {
           </View>
 
         </ScrollView>
-      )}
-
+      
       <Modal 
         visible={colModalVisible} 
         animationType="slide" 
@@ -480,14 +487,16 @@ const styles = StyleSheet.create({
   pickerValue: { fontSize: 16, fontWeight: '500', flex: 1 },
   modalBase: { flex: 1 },
   modalHeader: { 
-    height: 56, 
+    height: 60, 
     flexDirection: 'row', 
     alignItems: 'center', 
-    justifyContent: 'space-between', 
+    justifyContent: 'center', 
     paddingHorizontal: 16, 
     borderBottomWidth: 0.5 
   },
-  modalTitle: { fontSize: 17, fontWeight: '700' },
+  modalHandle: { position: 'absolute', top: 8, width: 36, height: 5, borderRadius: 2.5, backgroundColor: '#C7C7CC' },
+  modalTitle: { fontSize: 17, fontWeight: '700', marginTop: 10 },
+  modalClose: { position: 'absolute', right: 16, marginTop: 10 },
   modalCancel: { width: 80 },
   modalSearchArea: { padding: 16, borderBottomWidth: 0.5, borderBottomColor: 'rgba(0,0,0,0.05)' },
   modalSearchBox: { 
