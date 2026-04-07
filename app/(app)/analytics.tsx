@@ -192,7 +192,7 @@ export default function AnalyticsScreen() {
         headerTransparent: true,
         headerBlurEffect: isDark ? 'dark' : 'light',
         headerStyle: { backgroundColor: THEME.bg },
-        headerBackTitleStyle: { fontFamily: THEME.primary },
+        headerTintColor: THEME.accent,
       }} />
 
       {loading && !refreshing ? (
@@ -200,7 +200,7 @@ export default function AnalyticsScreen() {
       ) : (
         <ScrollView 
           style={styles.container}
-          contentContainerStyle={[styles.scrollContent, { paddingTop: (insets.top > 0 ? insets.top + 100 : 140) }]}
+          contentContainerStyle={[styles.scrollContent, { paddingTop: (insets.top > 0 ? insets.top + 120 : 140) }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={THEME.accent} />}
         >
 
@@ -211,14 +211,14 @@ export default function AnalyticsScreen() {
               onPress={() => setColModalVisible(true)}
               activeOpacity={0.7}
             >
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: 8 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <Ionicons name="filter-circle-outline" size={22} color={THEME.accent} style={{ marginRight: 12 }} />
                   <Text style={[styles.pickerValue, { color: THEME.text }]} numberOfLines={1}>
                     {selectedColecao ? colecoes.find(c => c.idExterno === selectedColecao)?.nome : 'Todas as Coleções'}
                   </Text>
                 </View>
-                <Ionicons name="chevron-down" size={16} color={THEME.secondary} />
+                <Ionicons name="chevron-down" size={16} color={THEME.secondary} style={{ marginLeft: 8 }} />
               </View>
             </TouchableOpacity>
           </View>

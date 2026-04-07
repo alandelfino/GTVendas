@@ -314,9 +314,12 @@ export default function PipelineScreen() {
   return (
     <View style={[styles.container, { backgroundColor: THEME.bg }]}>
       <Stack.Screen options={{ 
-        title: 'Funis de Vendas', 
+        title: 'Funil de Vendas',
         headerLargeTitle: true,
+        headerTransparent: true,
         headerBackTitle: 'Voltar',
+        headerBlurEffect: isDark ? 'dark' : 'light',
+        headerTintColor: '#F9B252',
         headerRight: () => (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 18 }}>
             <TouchableOpacity onPress={() => { closeOpenRow(); setBoardManagerVisible(true); }} hitSlop={{ top: 15, bottom: 15, left: 10, right: 5 }}>

@@ -101,7 +101,7 @@ export default function MetasHistoryScreen() {
         headerBackTitle: 'Voltar',
         headerTransparent: true,
         headerBlurEffect: isDark ? 'dark' : 'light',
-        headerTintColor: THEME.primary,
+        headerTintColor: THEME.accent,
         headerStyle: { backgroundColor: THEME.bg }
       }} />
 

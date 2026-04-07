@@ -151,7 +151,7 @@ export default function OrdersScreen() {
         headerTransparent: true,
         headerBackTitle: 'Voltar',
         headerBlurEffect: isDark ? 'dark' : 'light',
-        headerTintColor: THEME.primary,
+        headerTintColor: THEME.accent,
         headerSearchBarOptions: {
           placeholder: 'Buscar',
           onChangeText: (e) => setSearch(e.nativeEvent.text),

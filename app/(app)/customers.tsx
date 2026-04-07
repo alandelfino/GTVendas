@@ -185,11 +185,11 @@ export default function CustomersScreen() {
         headerTransparent: true,
         headerBackTitle: 'Voltar',
         headerBlurEffect: isDark ? 'dark' : 'light',
-        headerTintColor: THEME.primary,
+        headerTintColor: THEME.accent,
         headerSearchBarOptions: {
-          placeholder: 'Buscar Cliente',
+          placeholder: 'Buscar por nome, fantasia ou CNPJ',
           onChangeText: (e) => setSearch(e.nativeEvent.text),
-          headerIconColor: THEME.secondary,
+          headerIconColor: '#8E9AA9',
         }
       }} />
 
